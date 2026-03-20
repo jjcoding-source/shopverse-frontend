@@ -13,6 +13,7 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import UserDashboard from "@/pages/UserDashboard";
 import OrderHistory from "@/pages/OrderHistory";
+import Wishlist from "@/pages/Wishlist";
 
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminProducts from "@/pages/admin/AdminProducts";
@@ -37,6 +38,7 @@ const AppRoutes = () => (
         <Route path="/admin/products" element={<AdminRoute><AdminProducts /></AdminRoute>} />
         <Route path="/admin/orders" element={<AdminRoute><AdminOrders /></AdminRoute>} />
         <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
+        <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
       </Routes>
     </Layout>
   </BrowserRouter>

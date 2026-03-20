@@ -19,7 +19,7 @@ import { CATEGORIES } from "@/utils/constants";
 
 const Navbar = () => {
   const { user, isAuthenticated, isAdmin, signOut } = useAuth();
-  const { count, toggle } = useCart();
+  const { count } = useCart();
   const navigate = useNavigate();
 
   const [searchOpen, setSearchOpen] = useState(false);
@@ -141,27 +141,25 @@ const Navbar = () => {
             </button>
 
             {/* Wishlist */}
-            {isAuthenticated && (
-              <Link
-                to="/dashboard?tab=wishlist"
-                className="hidden sm:flex p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary-600 transition-colors"
-              >
-                <Heart size={18} />
-              </Link>
-            )}
-
-            {/* Cart */}
-            <button
-              onClick={toggle}
-              className="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary-600 transition-colors"
+            <Link
+              to={isAuthenticated ? "/wishlist" : "/login"}
+              className="hidden sm:flex p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary-600 transition-colors"
             >
-              <ShoppingCart size={18} />
-              {count > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-primary-600 text-white text-[10px] font-semibold rounded-full flex items-center justify-center px-1">
-                  {count > 99 ? "99+" : count}
-                </span>
-              )}
-            </button>
+             <Heart size={18} />
+            </Link>
+
+           {/* Cart */}
+          <Link
+            to="/cart"
+            className="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary-600 transition-colors"
+          >
+            <ShoppingCart size={18} />
+            {count > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-primary-600 text-white text-[10px] font-semibold rounded-full flex items-center justify-center px-1">
+                {count > 99 ? "99+" : count}
+              </span>
+            )}
+         </Link>
 
             {/* User menu */}
             {isAuthenticated ? (
