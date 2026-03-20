@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Layout from "@/components/common/Layout";
+import AdminLayout from "@/components/admin/AdminLayout";
 import ProtectedRoute from "./ProtectedRoute";
 import AdminRoute from "./AdminRoute";
 
@@ -22,25 +23,28 @@ import AdminUsers from "@/pages/admin/AdminUsers";
 
 const AppRoutes = () => (
   <BrowserRouter>
-    <Layout>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/products" element={<ProductListing />} />
+    <Routes>
+      {/* Public routes — with Navbar + Footer */}
+      <Route element={<Layout />}>
+        <Route path="/"           element={<Home />} />
+        <Route path="/products"   element={<ProductListing />} />
         <Route path="/products/:id" element={<ProductDetail />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
-        <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
-        <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+        <Route path="/cart"       element={<Cart />} />
+        <Route path="/login"      element={<Login />} />
+        <Route path="/register"   element={<Register />} />
+        <Route path="/checkout"   element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
         <Route path="/order-success" element={<ProtectedRoute><OrderSuccess /></ProtectedRoute>} />
-        <Route path="/dashboard" element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
-        <Route path="/orders" element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
-        <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-        <Route path="/admin/products" element={<AdminRoute><AdminProducts /></AdminRoute>} />
-        <Route path="/admin/orders" element={<AdminRoute><AdminOrders /></AdminRoute>} />
-        <Route path="/admin/users" element={<AdminRoute><AdminUsers /></AdminRoute>} />
-        <Route path="/wishlist" element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
-      </Routes>
-    </Layout>
+        <Route path="/dashboard"  element={<ProtectedRoute><UserDashboard /></ProtectedRoute>} />
+        <Route path="/orders"     element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
+        <Route path="/wishlist"   element={<ProtectedRoute><Wishlist /></ProtectedRoute>} />
+      </Route>
+
+      {/* Admin routes — with AdminLayout, no public Navbar */}
+      <Route path="/admin" element={<AdminRoute><AdminLayout><AdminDashboard /></AdminLayout></AdminRoute>} />
+      <Route path="/admin/products" element={<AdminRoute><AdminLayout><AdminProducts /></AdminLayout></AdminRoute>} />
+      <Route path="/admin/orders"   element={<AdminRoute><AdminLayout><AdminOrders /></AdminLayout></AdminRoute>} />
+      <Route path="/admin/users"    element={<AdminRoute><AdminLayout><AdminUsers /></AdminLayout></AdminRoute>} />
+    </Routes>
   </BrowserRouter>
 );
 
