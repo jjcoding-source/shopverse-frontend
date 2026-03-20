@@ -1,10 +1,9 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
   Search,
   ShoppingCart,
   Heart,
-  User,
   Menu,
   X,
   ChevronDown,
@@ -20,20 +19,58 @@ import { CATEGORIES } from "@/utils/constants";
 const Navbar = () => {
   const { user, isAuthenticated, isAdmin, signOut } = useAuth();
   const { count } = useCart();
-  const navigate = useNavigate();
+  const navigate  = useNavigate();
+  const location  = useLocation();
 
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [searchOpen,     setSearchOpen]     = useState(false);
+  const [searchQuery,    setSearchQuery]    = useState("");
+  const [mobileOpen,     setMobileOpen]     = useState(false);
+  const [userMenuOpen,   setUserMenuOpen]   = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
 
-  const handleSearch = (e) => {
+  const isOnProductsPage = location.pathname === "/products";
+
+  useEffect(() => {
+    if (isOnProductsPage) {
+      const params = new URLSearchParams(location.search);
+      setSearchQuery(params.get("search") || "");
+    } else {
+      setSearchQuery("");
+    }
+  }, [location.search, isOnProductsPage]);
+
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setSearchQuery(val);
+
+    if (isOnProductsPage) {
+      const params = new URLSearchParams(location.search);
+      if (val.trim()) {
+        params.set("search", val.trim());
+      } else {
+        params.delete("search");
+      }
+      navigate(`/products?${params.toString()}`, { replace: true });
+    }
+  };
+
+  const handleSearchSubmit = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/products?search=${searchQuery.trim()}`);
+      navigate(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
       setSearchOpen(false);
-      setSearchQuery("");
+    } else {
+      navigate("/products");
+    }
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    if (isOnProductsPage) {
+      const params = new URLSearchParams(location.search);
+      params.delete("search");
+      const remaining = params.toString();
+      navigate(`/products${remaining ? `?${remaining}` : ""}`, { replace: true });
     }
   };
 
@@ -45,7 +82,7 @@ const Navbar = () => {
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm">
-      {/* Top announcement bar */}
+      {/* Announcement bar */}
       <div className="bg-primary-900 text-primary-100 text-xs text-center py-2 font-medium tracking-wide">
         Free shipping on orders over $75 · Use code{" "}
         <span className="text-white font-semibold">SUMMER50</span> for 50% off
@@ -80,7 +117,9 @@ const Navbar = () => {
                 Categories
                 <ChevronDown
                   size={14}
-                  className={`transition-transform ${categoriesOpen ? "rotate-180" : ""}`}
+                  className={`transition-transform duration-200 ${
+                    categoriesOpen ? "rotate-180" : ""
+                  }`}
                 />
               </button>
               {categoriesOpen && (
@@ -92,9 +131,7 @@ const Navbar = () => {
                       onClick={() => setCategoriesOpen(false)}
                       className="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-primary-50 hover:text-primary-600 transition-colors"
                     >
-                      <span className="text-gray-400 text-xs font-medium uppercase tracking-wider w-20">
-                        {cat.label}
-                      </span>
+                      {cat.label}
                     </Link>
                   ))}
                 </div>
@@ -115,19 +152,26 @@ const Navbar = () => {
             </Link>
           </div>
 
-          {/* Search bar — desktop */}
+          {/* Desktop search bar */}
           <form
-            onSubmit={handleSearch}
+            onSubmit={handleSearchSubmit}
             className="hidden md:flex flex-1 max-w-sm items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 focus-within:border-primary-400 focus-within:bg-white transition-all"
           >
             <Search size={15} className="text-gray-400 shrink-0" />
             <input
               type="text"
-              placeholder="Search products..."
+              placeholder={
+                isOnProductsPage ? "Filter products..." : "Search products..."
+              }
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchChange}
               className="flex-1 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none"
             />
+            {searchQuery && (
+              <button type="button" onClick={handleClearSearch}>
+                <X size={13} className="text-gray-400 hover:text-gray-600" />
+              </button>
+            )}
           </form>
 
           {/* Right actions */}
@@ -145,21 +189,21 @@ const Navbar = () => {
               to={isAuthenticated ? "/wishlist" : "/login"}
               className="hidden sm:flex p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary-600 transition-colors"
             >
-             <Heart size={18} />
+              <Heart size={18} />
             </Link>
 
-           {/* Cart */}
-          <Link
-            to="/cart"
-            className="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary-600 transition-colors"
-          >
-            <ShoppingCart size={18} />
-            {count > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-primary-600 text-white text-[10px] font-semibold rounded-full flex items-center justify-center px-1">
-                {count > 99 ? "99+" : count}
-              </span>
-            )}
-         </Link>
+            {/* Cart */}
+            <Link
+              to="/cart"
+              className="relative p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-primary-600 transition-colors"
+            >
+              <ShoppingCart size={18} />
+              {count > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-primary-600 text-white text-[10px] font-semibold rounded-full flex items-center justify-center px-1">
+                  {count > 99 ? "99+" : count}
+                </span>
+              )}
+            </Link>
 
             {/* User menu */}
             {isAuthenticated ? (
@@ -173,16 +217,21 @@ const Navbar = () => {
                   </div>
                   <ChevronDown
                     size={14}
-                    className={`text-gray-400 hidden sm:block transition-transform ${userMenuOpen ? "rotate-180" : ""}`}
+                    className={`text-gray-400 hidden sm:block transition-transform duration-200 ${
+                      userMenuOpen ? "rotate-180" : ""
+                    }`}
                   />
                 </button>
+
                 {userMenuOpen && (
                   <div className="absolute right-0 top-full mt-2 w-52 bg-white border border-gray-100 rounded-xl shadow-lg py-2 z-50">
                     <div className="px-4 py-2 border-b border-gray-100 mb-1">
                       <p className="text-sm font-medium text-gray-900 truncate">
                         {user?.name}
                       </p>
-                      <p className="text-xs text-gray-400 truncate">{user?.email}</p>
+                      <p className="text-xs text-gray-400 truncate">
+                        {user?.email}
+                      </p>
                     </div>
                     <Link
                       to="/dashboard"
@@ -245,20 +294,24 @@ const Navbar = () => {
 
         {/* Mobile search bar */}
         {searchOpen && (
-          <form
-            onSubmit={handleSearch}
-            className="md:hidden pb-3"
-          >
+          <form onSubmit={handleSearchSubmit} className="md:hidden pb-3">
             <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-full px-4 py-2 focus-within:border-primary-400 transition-all">
               <Search size={15} className="text-gray-400 shrink-0" />
               <input
                 autoFocus
                 type="text"
-                placeholder="Search products..."
+                placeholder={
+                  isOnProductsPage ? "Filter products..." : "Search products..."
+                }
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={handleSearchChange}
                 className="flex-1 bg-transparent text-sm text-gray-800 placeholder:text-gray-400 outline-none"
               />
+              {searchQuery && (
+                <button type="button" onClick={handleClearSearch}>
+                  <X size={13} className="text-gray-400 hover:text-gray-600" />
+                </button>
+              )}
             </div>
           </form>
         )}
@@ -300,10 +353,18 @@ const Navbar = () => {
           </Link>
           {!isAuthenticated && (
             <div className="flex gap-3 pt-3 border-t border-gray-100">
-              <Link to="/login" onClick={() => setMobileOpen(false)} className="btn-outline flex-1 text-center text-sm">
+              <Link
+                to="/login"
+                onClick={() => setMobileOpen(false)}
+                className="btn-outline flex-1 text-center text-sm"
+              >
                 Sign in
               </Link>
-              <Link to="/register" onClick={() => setMobileOpen(false)} className="btn-primary flex-1 text-center text-sm">
+              <Link
+                to="/register"
+                onClick={() => setMobileOpen(false)}
+                className="btn-primary flex-1 text-center text-sm"
+              >
                 Sign up
               </Link>
             </div>
