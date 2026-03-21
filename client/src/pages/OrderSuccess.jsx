@@ -1,22 +1,21 @@
-import { Link } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import {
-  CheckCircle,
-  Package,
-  Truck,
-  Mail,
-  ArrowRight,
-  ShoppingBag,
-  Download,
+  CheckCircle, Package, Truck, Mail,
+  ArrowRight, ShoppingBag, Download,
 } from "lucide-react";
+import { formatPrice } from "@/utils/formatPrice";
 
 const OrderSuccess = () => {
-  const orderNumber = `SV-${Date.now().toString().slice(-8)}`;
+  const location   = useLocation();
+  const orderNumber = location.state?.orderNumber || `SV-${Date.now().toString().slice(-8)}`;
+  const orderId    = location.state?.orderId;
+  const total      = location.state?.total;
 
   const STEPS = [
-    { icon: CheckCircle, label: "Order confirmed",    desc: "We've received your order",       done: true  },
-    { icon: Package,     label: "Preparing order",    desc: "Being packed in our warehouse",   done: false },
-    { icon: Truck,       label: "Out for delivery",   desc: "On its way to you",               done: false },
-    { icon: CheckCircle, label: "Delivered",          desc: "Enjoy your purchase",             done: false },
+    { icon: CheckCircle, label: "Order confirmed",   desc: "We have received your order",    done: true  },
+    { icon: Package,     label: "Preparing order",   desc: "Being packed in our warehouse",  done: false },
+    { icon: Truck,       label: "Out for delivery",  desc: "On its way to you",              done: false },
+    { icon: CheckCircle, label: "Delivered",         desc: "Enjoy your purchase",            done: false },
   ];
 
   return (
@@ -59,20 +58,28 @@ const OrderSuccess = () => {
           <div className="grid grid-cols-3 gap-4 text-center">
             <div>
               <p className="text-xs text-gray-400 mb-1">Estimated delivery</p>
-              <p className="text-sm font-semibold text-gray-800">Mar 25–27, 2025</p>
+              <p className="text-sm font-semibold text-gray-800">
+                {new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString("en-US", {
+                  month: "short", day: "numeric",
+                })} — {new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toLocaleDateString("en-US", {
+                  month: "short", day: "numeric", year: "numeric",
+                })}
+              </p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 mb-1">Shipping method</p>
+              <p className="text-xs text-gray-400 mb-1">Shipping</p>
               <p className="text-sm font-semibold text-gray-800">Standard</p>
             </div>
             <div>
-              <p className="text-xs text-gray-400 mb-1">Payment</p>
-              <p className="text-sm font-semibold text-gray-800">Card ****3456</p>
+              <p className="text-xs text-gray-400 mb-1">Total paid</p>
+              <p className="text-sm font-semibold text-gray-800">
+                {total ? formatPrice(total) : "—"}
+              </p>
             </div>
           </div>
         </div>
 
-        {/* Order tracking progress */}
+        {/* Tracking progress */}
         <div className="bg-white border border-gray-100 rounded-2xl p-5 mb-6">
           <h3 className="text-sm font-bold text-gray-900 mb-4 text-left flex items-center gap-2">
             <Truck size={15} className="text-primary-600" />
@@ -95,7 +102,9 @@ const OrderSuccess = () => {
                     <Icon size={14} />
                   </div>
                   <div className="text-left">
-                    <p className={`text-sm font-semibold ${done || i === 1 ? "text-gray-900" : "text-gray-400"}`}>
+                    <p className={`text-sm font-semibold ${
+                      done || i === 1 ? "text-gray-900" : "text-gray-400"
+                    }`}>
                       {label}
                     </p>
                     <p className="text-xs text-gray-400">{desc}</p>
@@ -116,7 +125,7 @@ const OrderSuccess = () => {
           </div>
         </div>
 
-        {/* Email confirmation note */}
+        {/* Email note */}
         <div className="flex items-center gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4 mb-8 text-left">
           <Mail size={18} className="text-blue-500 shrink-0" />
           <p className="text-sm text-blue-700">
