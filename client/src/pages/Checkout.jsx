@@ -1,25 +1,20 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
-  ChevronRight,
-  Shield,
-  Lock,
-  CreditCard,
-  Truck,
-  Check,
-  ChevronDown,
-  ShoppingCart,
+  ChevronRight, Shield, Lock, CreditCard,
+  Truck, Check, ChevronDown, ShoppingCart,
 } from "lucide-react";
-import { useCart } from "@/hooks/useCart";
-import { useAuth } from "@/hooks/useAuth";
+import { useCart }    from "@/hooks/useCart";
+import { useAuth }    from "@/hooks/useAuth";
 import { formatPrice } from "@/utils/formatPrice";
-import toast from "react-hot-toast";
+import { ordersAPI }  from "@/store/api/ordersApi";
+import toast          from "react-hot-toast";
 
 const STEPS = [
-  { id: 1, label: "Cart" },
+  { id: 1, label: "Cart"     },
   { id: 2, label: "Shipping" },
-  { id: 3, label: "Payment" },
-  { id: 4, label: "Review" },
+  { id: 3, label: "Payment"  },
+  { id: 4, label: "Review"   },
 ];
 
 const COUNTRIES = [
@@ -68,7 +63,9 @@ const InputField = ({ label, error, ...props }) => (
   <div className="flex flex-col gap-1.5">
     <label className="text-xs font-semibold text-gray-700">{label}</label>
     <input
-      className={`input-field ${error ? "border-red-400 focus:border-red-400 focus:ring-red-50" : ""}`}
+      className={`input-field ${
+        error ? "border-red-400 focus:border-red-400 focus:ring-red-50" : ""
+      }`}
       {...props}
     />
     {error && <p className="text-xs text-red-500">{error}</p>}
@@ -76,16 +73,18 @@ const InputField = ({ label, error, ...props }) => (
 );
 
 const Checkout = () => {
-  const navigate = useNavigate();
+  const navigate          = useNavigate();
   const { items, total, count, clear } = useCart();
-  const { user } = useAuth();
+  const { user }          = useAuth();
 
-  const [step, setStep] = useState(2);
+  const [step,    setStep]    = useState(2);
+  const [errors,  setErrors]  = useState({});
+  const [loading, setLoading] = useState(false);
 
   const [shipping, setShipping] = useState({
     firstName: user?.name?.split(" ")[0] || "",
     lastName:  user?.name?.split(" ")[1] || "",
-    email:     user?.email || "",
+    email:     user?.email               || "",
     phone:     "",
     address:   "",
     city:      "",
@@ -103,20 +102,28 @@ const Checkout = () => {
     saveCard:   false,
   });
 
-  const [errors,     setErrors]     = useState({});
-  const [loading,    setLoading]    = useState(false);
-  const [sameAsBilling, setSameAsBilling] = useState(true);
-
   const shippingCost = total >= 75 ? 0 : 9.99;
-  const discount     = 0;
-  const tax          = (total - discount) * 0.08;
-  const orderTotal   = total - discount + shippingCost + tax;
+  const tax          = (total) * 0.08;
+  const orderTotal   = total + shippingCost + tax;
+
+  const updateShipping = (field, value) =>
+    setShipping((p) => ({ ...p, [field]: value }));
+
+  const updatePayment = (field, value) =>
+    setPayment((p) => ({ ...p, [field]: value }));
+
+  const formatCard = (val) =>
+    val.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
+
+  const formatExpiry = (val) =>
+    val.replace(/\D/g, "").slice(0, 4).replace(/(.{2})/, "$1/");
 
   const validateShipping = () => {
     const e = {};
     if (!shipping.firstName.trim()) e.firstName = "Required";
     if (!shipping.lastName.trim())  e.lastName  = "Required";
     if (!shipping.email.trim())     e.email     = "Required";
+    else if (!/\S+@\S+\.\S+/.test(shipping.email)) e.email = "Invalid email";
     if (!shipping.address.trim())   e.address   = "Required";
     if (!shipping.city.trim())      e.city      = "Required";
     if (!shipping.zip.trim())       e.zip       = "Required";
@@ -143,47 +150,102 @@ const Checkout = () => {
     if (validatePayment()) { setStep(4); setErrors({}); }
   };
 
+  // ── Place real order ──
   const handlePlaceOrder = async () => {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1800));
-    clear();
-    toast.success("Order placed successfully!");
-    navigate("/order-success");
+    try {
+      // Build order items from cart
+      const orderItems = items.map((item) => ({
+        product:       item._id,
+        name:          item.name,
+        image:         item.image || "",
+        price:         item.price,
+        quantity:      item.quantity,
+        selectedColor: item.selectedColor || "",
+        selectedSize:  item.selectedSize  || "",
+      }));
+
+      const orderData = {
+        items:           orderItems,
+        shippingAddress: shipping,
+        paymentMethod:   payment.method,
+        subtotal:        total,
+        shippingPrice:   shippingCost,
+        taxPrice:        tax,
+        discount:        0,
+        totalPrice:      orderTotal,
+      };
+
+      const { data } = await ordersAPI.create(orderData);
+
+      // Clear cart after successful order
+      clear();
+
+      toast.success("Order placed successfully!");
+
+      // Navigate to success page with order info
+      navigate("/order-success", {
+        state: {
+          orderNumber: data.order.orderNumber,
+          orderId:     data.order._id,
+          total:       data.order.totalPrice,
+        },
+      });
+    } catch (err) {
+      const message = err.response?.data?.message || "Failed to place order. Please try again.";
+      toast.error(message);
+      console.error("Order error:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const updateShipping = (field, value) =>
-    setShipping((p) => ({ ...p, [field]: value }));
+  // ── Empty cart guard ──
+  if (items.length === 0) {
+    return (
+      <div className="bg-gray-50 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <ShoppingCart size={28} className="text-gray-300" />
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Your cart is empty</h2>
+          <p className="text-gray-500 text-sm mb-6">
+            Add some products before checking out.
+          </p>
+          <Link to="/products" className="btn-primary inline-flex items-center gap-2">
+            Browse products
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
-  const updatePayment = (field, value) =>
-    setPayment((p) => ({ ...p, [field]: value }));
-
-  const formatCard = (val) =>
-    val.replace(/\D/g, "").slice(0, 16).replace(/(.{4})/g, "$1 ").trim();
-
-  const formatExpiry = (val) =>
-    val.replace(/\D/g, "").slice(0, 4).replace(/(.{2})/, "$1/");
-
-  // Order summary sidebar
+  // ── Order summary sidebar ──
   const OrderSummary = () => (
     <div className="bg-white rounded-2xl border border-gray-100 p-5 sticky top-24">
-      <h3 className="text-sm font-semibold text-gray-900 mb-4">
-        Order summary
-      </h3>
+      <h3 className="text-sm font-semibold text-gray-900 mb-4">Order summary</h3>
 
       {/* Items */}
       <div className="space-y-3 mb-4 max-h-56 overflow-y-auto">
         {items.map((item) => (
           <div key={item.cartKey} className="flex gap-3">
-            <div className="w-12 h-12 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 bg-gray-50 rounded-lg border border-gray-100 flex items-center justify-center shrink-0 overflow-hidden">
               {item.image ? (
-                <img src={item.image} alt={item.name} className="w-full h-full object-cover rounded-lg" />
+                <img
+                  src={item.image}
+                  alt={item.name}
+                  className="w-full h-full object-cover rounded-lg"
+                />
               ) : (
                 <ShoppingCart size={14} className="text-gray-300" />
               )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-gray-800 line-clamp-1">{item.name}</p>
-              <p className="text-xs text-gray-400 mt-0.5">Qty: {item.quantity}</p>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Qty: {item.quantity}
+                {item.selectedColor && ` · ${item.selectedColor}`}
+              </p>
             </div>
             <p className="text-xs font-semibold text-gray-900 shrink-0">
               {formatPrice(item.price * item.quantity)}
@@ -192,6 +254,7 @@ const Checkout = () => {
         ))}
       </div>
 
+      {/* Totals */}
       <div className="border-t border-gray-100 pt-3 space-y-2.5 text-sm">
         <div className="flex justify-between text-gray-500">
           <span>Subtotal ({count} items)</span>
@@ -213,6 +276,12 @@ const Checkout = () => {
         </div>
       </div>
 
+      {shippingCost > 0 && (
+        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2 mt-3">
+          Add {formatPrice(75 - total)} more for free shipping
+        </p>
+      )}
+
       <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-2 text-xs text-gray-400">
         <Lock size={11} className="text-primary-400 shrink-0" />
         Secured with 256-bit SSL encryption
@@ -226,7 +295,10 @@ const Checkout = () => {
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
           <div className="flex items-center justify-between mb-6">
-            <Link to="/" className="text-xl font-bold text-gray-900 tracking-tight">
+            <Link
+              to="/"
+              className="text-xl font-bold text-gray-900 tracking-tight"
+            >
               Shop<span className="text-primary-600">Verse</span>
             </Link>
             <div className="flex items-center gap-1.5 text-xs text-gray-500">
@@ -244,6 +316,7 @@ const Checkout = () => {
           {/* ── Left form area ── */}
           <div className="lg:col-span-2 space-y-5">
 
+            {/* ── Shipping ── */}
             {step === 2 && (
               <div className="bg-white rounded-2xl border border-gray-100 p-6">
                 <h2 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
@@ -347,9 +420,24 @@ const Checkout = () => {
                   </p>
                   <div className="space-y-2.5">
                     {[
-                      { id: "standard", label: "Standard delivery", desc: "5–7 business days", price: total >= 75 ? "Free" : "$9.99" },
-                      { id: "express",  label: "Express delivery",  desc: "2–3 business days", price: "$19.99" },
-                      { id: "overnight",label: "Overnight delivery",desc: "Next business day",  price: "$39.99" },
+                      {
+                        id:    "standard",
+                        label: "Standard delivery",
+                        desc:  "5–7 business days",
+                        price: total >= 75 ? "Free" : "$9.99",
+                      },
+                      {
+                        id:    "express",
+                        label: "Express delivery",
+                        desc:  "2–3 business days",
+                        price: "$19.99",
+                      },
+                      {
+                        id:    "overnight",
+                        label: "Overnight delivery",
+                        desc:  "Next business day",
+                        price: "$39.99",
+                      },
                     ].map((method) => (
                       <label
                         key={method.id}
@@ -362,7 +450,9 @@ const Checkout = () => {
                           className="accent-primary-600"
                         />
                         <div className="flex-1">
-                          <p className="text-sm font-semibold text-gray-800">{method.label}</p>
+                          <p className="text-sm font-semibold text-gray-800">
+                            {method.label}
+                          </p>
                           <p className="text-xs text-gray-500">{method.desc}</p>
                         </div>
                         <span className="text-sm font-semibold text-gray-900">
@@ -381,7 +471,10 @@ const Checkout = () => {
                     <ChevronRight size={15} className="rotate-180" />
                     Back to cart
                   </Link>
-                  <button onClick={handleShippingNext} className="btn-primary flex items-center gap-2">
+                  <button
+                    onClick={handleShippingNext}
+                    className="btn-primary flex items-center gap-2"
+                  >
                     Continue to payment
                     <ChevronRight size={15} />
                   </button>
@@ -389,6 +482,7 @@ const Checkout = () => {
               </div>
             )}
 
+            {/* ── Payment ── */}
             {step === 3 && (
               <div className="bg-white rounded-2xl border border-gray-100 p-6">
                 <h2 className="text-lg font-bold text-gray-900 mb-5 flex items-center gap-2">
@@ -400,8 +494,8 @@ const Checkout = () => {
                 <div className="flex gap-2 mb-6">
                   {[
                     { id: "card",   label: "Credit / Debit card" },
-                    { id: "paypal", label: "PayPal" },
-                    { id: "stripe", label: "Stripe" },
+                    { id: "paypal", label: "PayPal"              },
+                    { id: "stripe", label: "Stripe"              },
                   ].map((m) => (
                     <button
                       key={m.id}
@@ -430,7 +524,9 @@ const Checkout = () => {
                       label="Card number"
                       placeholder="1234  5678  9012  3456"
                       value={payment.cardNumber}
-                      onChange={(e) => updatePayment("cardNumber", formatCard(e.target.value))}
+                      onChange={(e) =>
+                        updatePayment("cardNumber", formatCard(e.target.value))
+                      }
                       error={errors.cardNumber}
                       maxLength={19}
                     />
@@ -439,7 +535,9 @@ const Checkout = () => {
                         label="Expiry date"
                         placeholder="MM / YY"
                         value={payment.expiry}
-                        onChange={(e) => updatePayment("expiry", formatExpiry(e.target.value))}
+                        onChange={(e) =>
+                          updatePayment("expiry", formatExpiry(e.target.value))
+                        }
                         error={errors.expiry}
                         maxLength={5}
                       />
@@ -447,7 +545,12 @@ const Checkout = () => {
                         label="CVV"
                         placeholder="123"
                         value={payment.cvv}
-                        onChange={(e) => updatePayment("cvv", e.target.value.replace(/\D/g, "").slice(0, 4))}
+                        onChange={(e) =>
+                          updatePayment(
+                            "cvv",
+                            e.target.value.replace(/\D/g, "").slice(0, 4)
+                          )
+                        }
                         error={errors.cvv}
                         maxLength={4}
                       />
@@ -496,7 +599,10 @@ const Checkout = () => {
                     <ChevronRight size={15} className="rotate-180" />
                     Back to shipping
                   </button>
-                  <button onClick={handlePaymentNext} className="btn-primary flex items-center gap-2">
+                  <button
+                    onClick={handlePaymentNext}
+                    className="btn-primary flex items-center gap-2"
+                  >
                     Review order
                     <ChevronRight size={15} />
                   </button>
@@ -504,6 +610,7 @@ const Checkout = () => {
               </div>
             )}
 
+            {/* ── Review + Place order ── */}
             {step === 4 && (
               <div className="space-y-4">
                 {/* Shipping summary */}
@@ -525,7 +632,10 @@ const Checkout = () => {
                       {shipping.firstName} {shipping.lastName}
                     </p>
                     <p>{shipping.address}</p>
-                    <p>{shipping.city}, {shipping.state} {shipping.zip}</p>
+                    <p>
+                      {shipping.city}
+                      {shipping.state && `, ${shipping.state}`} {shipping.zip}
+                    </p>
                     <p>{shipping.country}</p>
                     <p className="text-gray-400 text-xs mt-1">{shipping.email}</p>
                   </div>
@@ -547,19 +657,66 @@ const Checkout = () => {
                   </div>
                   <p className="text-sm text-gray-600 capitalize">
                     {payment.method === "card"
-                      ? `Card ending in ${payment.cardNumber.slice(-4) || "****"}`
+                      ? `Card ending in ${
+                          payment.cardNumber.replace(/\s/g, "").slice(-4) || "****"
+                        }`
                       : payment.method}
                   </p>
+                </div>
+
+                {/* Items summary */}
+                <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                  <h3 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+                    <ShoppingCart size={15} className="text-primary-600" />
+                    Order items ({count})
+                  </h3>
+                  <div className="space-y-2.5">
+                    {items.map((item) => (
+                      <div
+                        key={item.cartKey}
+                        className="flex items-center justify-between text-sm"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 bg-gray-50 rounded-lg border border-gray-100 overflow-hidden shrink-0">
+                            {item.image ? (
+                              <img
+                                src={item.image}
+                                alt={item.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <ShoppingCart size={12} className="text-gray-300" />
+                              </div>
+                            )}
+                          </div>
+                          <span className="text-gray-700 line-clamp-1 max-w-[200px]">
+                            {item.name}
+                          </span>
+                          <span className="text-gray-400 text-xs shrink-0">
+                            × {item.quantity}
+                          </span>
+                        </div>
+                        <span className="font-semibold text-gray-900 shrink-0 ml-2">
+                          {formatPrice(item.price * item.quantity)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Place order */}
                 <div className="bg-white rounded-2xl border border-gray-100 p-5">
                   <p className="text-xs text-gray-500 mb-4 leading-relaxed">
                     By placing your order you agree to ShopVerse's{" "}
-                    <a href="#" className="text-primary-600 underline">Terms of service</a>{" "}
+                    <a href="#" className="text-primary-600 underline">
+                      Terms of service
+                    </a>{" "}
                     and{" "}
-                    <a href="#" className="text-primary-600 underline">Privacy policy</a>.
-                    Your payment is processed securely.
+                    <a href="#" className="text-primary-600 underline">
+                      Privacy policy
+                    </a>
+                    . Your payment is processed securely.
                   </p>
                   <button
                     onClick={handlePlaceOrder}
@@ -569,7 +726,7 @@ const Checkout = () => {
                     {loading ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Processing order...
+                        Placing order...
                       </>
                     ) : (
                       <>
