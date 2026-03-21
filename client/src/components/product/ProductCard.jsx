@@ -1,29 +1,21 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Heart, ShoppingCart, Star, Eye } from "lucide-react";
-import { useCart } from "@/hooks/useCart";
+import { useCart }      from "@/hooks/useCart";
+import { useWishlist }  from "@/hooks/useWishlist";
 import { formatPrice, calcDiscount } from "@/utils/formatPrice";
-import toast from "react-hot-toast";
 
 const ProductCard = ({ product }) => {
-  const { addItem }  = useCart();
-  const navigate     = useNavigate();
-  const [wishlisted, setWishlisted] = useState(false);
-  const [adding,     setAdding]     = useState(false);
+  const { addItem }              = useCart();
+  const { isWishlisted, toggle } = useWishlist();
+  const navigate                 = useNavigate();
+  const [adding, setAdding]      = useState(false);
 
   const {
-    _id,
-    name,
-    price,
-    originalPrice,
-    images,
-    category,
-    rating,
-    reviewCount,
-    stock,
-    isNew,
-    newArrival,
-    isFeatured,
+    _id, name, price, originalPrice,
+    images, category, rating,
+    reviewCount, stock, isNew,
+    newArrival, isFeatured,
   } = product;
 
   const categoryName =
@@ -35,6 +27,8 @@ const ProductCard = ({ product }) => {
     originalPrice && originalPrice > price
       ? calcDiscount(originalPrice, price)
       : null;
+
+  const wishlisted = isWishlisted(_id);
 
   const handleAddToCart = (e) => {
     e.preventDefault();
@@ -50,15 +44,16 @@ const ProductCard = ({ product }) => {
       selectedSize:  null,
       quantity:      1,
     });
-    toast.success(`${name} added to cart`);
+    import("react-hot-toast").then(({ default: toast }) => {
+      toast.success(`${name} added to cart`);
+    });
     setTimeout(() => setAdding(false), 600);
   };
 
   const handleWishlist = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    setWishlisted((p) => !p);
-    toast.success(wishlisted ? "Removed from wishlist" : "Added to wishlist");
+    toggle(_id);
   };
 
   const handleEyeClick = (e) => {
@@ -105,7 +100,7 @@ const ProductCard = ({ product }) => {
           )}
         </div>
 
-        {/* Action buttons — use buttons not Links to avoid nested <a> */}
+        {/* Action buttons */}
         <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0 transition-all duration-200">
           <button
             onClick={handleWishlist}
@@ -113,7 +108,11 @@ const ProductCard = ({ product }) => {
           >
             <Heart
               size={14}
-              className={wishlisted ? "fill-red-500 text-red-500" : "text-gray-400"}
+              className={
+                wishlisted
+                  ? "fill-red-500 text-red-500"
+                  : "text-gray-400"
+              }
             />
           </button>
           <button
@@ -143,16 +142,15 @@ const ProductCard = ({ product }) => {
           {name}
         </h3>
 
-        {/* Rating */}
         {rating > 0 && (
           <div className="flex items-center gap-1.5">
             <div className="flex items-center gap-0.5">
-              {[1, 2, 3, 4, 5].map((star) => (
+              {[1, 2, 3, 4, 5].map((s) => (
                 <Star
-                  key={star}
+                  key={s}
                   size={11}
                   className={
-                    star <= Math.round(rating)
+                    s <= Math.round(rating)
                       ? "fill-amber-400 text-amber-400"
                       : "fill-gray-200 text-gray-200"
                   }
@@ -165,7 +163,6 @@ const ProductCard = ({ product }) => {
           </div>
         )}
 
-        {/* Price row */}
         <div className="flex items-center justify-between mt-auto pt-2">
           <div className="flex items-baseline gap-2">
             <span className="text-base font-semibold text-gray-900">
