@@ -21,6 +21,7 @@ import AdminProducts from "@/pages/admin/AdminProducts";
 import AdminOrders from "@/pages/admin/AdminOrders";
 import AdminUsers from "@/pages/admin/AdminUsers";
 import AdminCategories from "@/pages/admin/AdminCategories";
+import AdminAnalytics from "@/pages/admin/AdminAnalytics";
 
 const AppRoutes = () => (
   <BrowserRouter>
@@ -46,6 +47,7 @@ const AppRoutes = () => (
       <Route path="/admin/orders"   element={<AdminRoute><AdminLayout><AdminOrders /></AdminLayout></AdminRoute>} />
       <Route path="/admin/users"    element={<AdminRoute><AdminLayout><AdminUsers /></AdminLayout></AdminRoute>} />
       <Route path="/admin/categories" element={<AdminRoute><AdminLayout><AdminCategories /></AdminLayout></AdminRoute>} />
+      <Route path="/admin/analytics" element={<AdminRoute><AdminLayout><AdminAnalytics /></AdminLayout></AdminRoute>} />
     </Routes>
   </BrowserRouter>
 );
