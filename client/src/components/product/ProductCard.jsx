@@ -57,9 +57,9 @@ const ProductCard = ({ product }) => {
     >
       {/* Image area */}
       <div className="relative aspect-square bg-gray-50 overflow-hidden">
-        {images?.[0] ? (
+        {images?.[0]?.url ? (
           <img
-            src={images[0]}
+            src={images[0].url}
             alt={name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
