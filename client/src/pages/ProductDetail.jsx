@@ -4,27 +4,18 @@ import {
   Star, ShoppingCart, Heart, Share2,
   Truck, RefreshCw, Shield, ChevronRight,
   Minus, Plus, Check, Package,
-  MessageSquare, ThumbsUp, Image,
+  MessageSquare, Image,
 } from "lucide-react";
-import { useCart }       from "@/hooks/useCart";
+import { useCart }      from "@/hooks/useCart";
+import { useWishlist }  from "@/hooks/useWishlist";
+import { useAuth }      from "@/hooks/useAuth";
 import { formatPrice, calcDiscount } from "@/utils/formatPrice";
-import ProductCard       from "@/components/product/ProductCard";
-import Loader            from "@/components/common/Loader";
-import { productsAPI }   from "@/store/api/productsApi";
-import { authAPI }       from "@/store/api/authApi";
-import { useAuth }       from "@/hooks/useAuth";
-import toast             from "react-hot-toast";
-import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { reviewsAPI } from "@/store/api/reviewsApi";
-import ReviewsSection from "@/components/product/ReviewsSection";
-
-const RATING_DIST = [
-  { star: 5, pct: 88 },
-  { star: 4, pct: 8  },
-  { star: 3, pct: 3  },
-  { star: 2, pct: 1  },
-  { star: 1, pct: 0  },
-];
+import ProductCard      from "@/components/product/ProductCard";
+import Loader           from "@/components/common/Loader";
+import ReviewsSection   from "@/components/product/ReviewsSection";
+import { productsAPI }  from "@/store/api/productsApi";
+import { useQuery }     from "@tanstack/react-query";
+import toast            from "react-hot-toast";
 
 const StarRow = ({ count, filled }) => (
   <div className="flex items-center gap-0.5">
@@ -32,26 +23,30 @@ const StarRow = ({ count, filled }) => (
       <Star
         key={s}
         size={count}
-        className={s <= filled ? "fill-amber-400 text-amber-400" : "fill-gray-200 text-gray-200"}
+        className={
+          s <= filled
+            ? "fill-amber-400 text-amber-400"
+            : "fill-gray-200 text-gray-200"
+        }
       />
     ))}
   </div>
 );
 
 const ProductDetail = () => {
-  const { id }      = useParams();
-  const { addItem } = useCart();
-  const { isAuthenticated } = useAuth();
+  const { id }                    = useParams();
+  const { addItem }               = useCart();
+  const { isAuthenticated }       = useAuth();
+  const { isWishlisted, toggle }  = useWishlist();
 
   const [activeImg,     setActiveImg]     = useState(0);
   const [selectedColor, setSelectedColor] = useState(null);
   const [qty,           setQty]           = useState(1);
-  const [wishlisted,    setWishlisted]    = useState(false);
-  const [searchParams]  = useSearchParams();
-  const [activeTab, setActiveTab] = useState(
-  searchParams.get("tab") || "description"
- );
   const [adding,        setAdding]        = useState(false);
+  const [searchParams]                    = useSearchParams();
+  const [activeTab,     setActiveTab]     = useState(
+    searchParams.get("tab") || "description"
+  );
 
   const { data: productData, isLoading } = useQuery({
     queryKey: ["product", id],
@@ -70,6 +65,17 @@ const ProductDetail = () => {
     ? calcDiscount(product.originalPrice, product.price)
     : null;
 
+  // hook — synced with MongoDB
+  const wishlisted = isWishlisted(product?._id);
+
+  const handleWishlist = () => {
+    if (!isAuthenticated) {
+      toast.error("Please sign in to save items");
+      return;
+    }
+    toggle(product._id);
+  };
+
   const handleAddToCart = () => {
     if (!product) return;
     setAdding(true);
@@ -79,26 +85,12 @@ const ProductDetail = () => {
       price:         product.price,
       image:         product.images?.[0]?.url,
       category:      product.category?.name,
-      selectedColor: selectedColor || product.colors?.[0],
+      selectedColor: selectedColor || product.colors?.[0] || null,
       selectedSize:  null,
       quantity:      qty,
     });
     toast.success(`${product.name} added to cart`);
     setTimeout(() => setAdding(false), 800);
-  };
-
-  const handleWishlist = async () => {
-    if (!isAuthenticated) {
-      toast.error("Please login to save items");
-      return;
-    }
-    try {
-      await authAPI.toggleWishlist(product._id);
-      setWishlisted((p) => !p);
-      toast.success(wishlisted ? "Removed from wishlist" : "Saved to wishlist");
-    } catch {
-      toast.error("Failed to update wishlist");
-    }
   };
 
   if (isLoading) return <Loader fullscreen text="Loading product..." />;
@@ -108,13 +100,16 @@ const ProductDetail = () => {
       <div className="max-w-7xl mx-auto px-4 py-20 text-center">
         <Package size={48} className="text-gray-200 mx-auto mb-4" />
         <h2 className="text-xl font-bold text-gray-900 mb-2">Product not found</h2>
-        <Link to="/products" className="btn-primary inline-block mt-4">Browse products</Link>
+        <Link to="/products" className="btn-primary inline-block mt-4">
+          Browse products
+        </Link>
       </div>
     );
   }
 
   return (
     <div className="bg-white min-h-screen">
+
       {/* Breadcrumb */}
       <div className="border-b border-gray-100 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
@@ -123,12 +118,15 @@ const ProductDetail = () => {
             <ChevronRight size={12} />
             <Link to="/products" className="hover:text-primary-600 transition-colors">Products</Link>
             <ChevronRight size={12} />
-            <span className="text-gray-700 font-medium line-clamp-1 max-w-xs">{product.name}</span>
+            <span className="text-gray-700 font-medium line-clamp-1 max-w-xs">
+              {product.name}
+            </span>
           </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
         {/* Top section */}
         <div className="grid lg:grid-cols-2 gap-10 mb-12">
 
@@ -147,6 +145,8 @@ const ProductDetail = () => {
                   <span className="text-sm text-gray-300">Product image</span>
                 </div>
               )}
+
+              {/* Badges */}
               <div className="absolute top-4 left-4 flex flex-col gap-2">
                 {discount && (
                   <span className="badge bg-red-500 text-white text-xs px-2.5 py-1">
@@ -159,16 +159,22 @@ const ProductDetail = () => {
                   </span>
                 )}
               </div>
+
+              {/* Wishlist button on image */}
               <button
                 onClick={handleWishlist}
                 className="absolute top-4 right-4 w-9 h-9 bg-white rounded-full shadow-sm border border-gray-100 flex items-center justify-center hover:bg-primary-50 transition-colors"
               >
                 <Heart
                   size={16}
-                  className={wishlisted ? "fill-red-500 text-red-500" : "text-gray-400"}
+                  className={
+                    wishlisted ? "fill-red-500 text-red-500" : "text-gray-400"
+                  }
                 />
               </button>
             </div>
+
+            {/* Thumbnails */}
             {product.images?.length > 1 && (
               <div className="grid grid-cols-4 gap-2.5">
                 {product.images.map((img, i) => (
@@ -176,10 +182,16 @@ const ProductDetail = () => {
                     key={i}
                     onClick={() => setActiveImg(i)}
                     className={`aspect-square rounded-xl border-2 bg-gray-50 overflow-hidden transition-all ${
-                      activeImg === i ? "border-primary-600" : "border-gray-100 hover:border-gray-300"
+                      activeImg === i
+                        ? "border-primary-600"
+                        : "border-gray-100 hover:border-gray-300"
                     }`}
                   >
-                    <img src={img.url} alt="" className="w-full h-full object-cover" />
+                    <img
+                      src={img.url}
+                      alt=""
+                      className="w-full h-full object-cover"
+                    />
                   </button>
                 ))}
               </div>
@@ -207,14 +219,17 @@ const ProductDetail = () => {
                 {product.name}
               </h1>
               <div className="flex items-center gap-3">
-                <StarRow count={15} filled={Math.round(product.rating)} />
-                <span className="text-sm font-semibold text-gray-800">{product.rating}</span>
+                <StarRow count={15} filled={Math.round(product.rating || 0)} />
+                <span className="text-sm font-semibold text-gray-800">
+                  {product.rating || 0}
+                </span>
                 <span className="text-sm text-gray-400">
-                  ({product.reviewCount?.toLocaleString()} reviews)
+                  ({product.reviewCount?.toLocaleString() || 0} reviews)
                 </span>
               </div>
             </div>
 
+            {/* Price */}
             <div className="flex items-baseline gap-3 pb-5 border-b border-gray-100">
               <span className="text-3xl font-bold text-gray-900">
                 {formatPrice(product.price)}
@@ -279,7 +294,9 @@ const ProductDetail = () => {
                     <Plus size={14} />
                   </button>
                 </div>
-                <span className="text-xs text-gray-400">{product.stock} units available</span>
+                <span className="text-xs text-gray-400">
+                  {product.stock} units available
+                </span>
               </div>
             </div>
 
@@ -305,7 +322,9 @@ const ProductDetail = () => {
               >
                 <Heart
                   size={18}
-                  className={wishlisted ? "fill-red-500 text-red-500" : "text-gray-400"}
+                  className={
+                    wishlisted ? "fill-red-500 text-red-500" : "text-gray-400"
+                  }
                 />
               </button>
               <button className="w-12 h-12 flex items-center justify-center border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
@@ -316,10 +335,10 @@ const ProductDetail = () => {
             {/* Delivery info */}
             <div className="bg-gray-50 rounded-xl p-4 space-y-3">
               {[
-                { icon: Truck,     title: "Free delivery",      desc: "Estimated by Wed, March 25" },
-                { icon: RefreshCw, title: "Free 30-day returns",desc: "Easy hassle-free returns"   },
-                { icon: Shield,    title: "2-year warranty",    desc: "Official warranty included" },
-                { icon: Package,   title: "Secure packaging",   desc: "Tamper-proof sealed"        },
+                { icon: Truck,     title: "Free delivery",       desc: "Estimated in 5–7 business days" },
+                { icon: RefreshCw, title: "Free 30-day returns", desc: "Easy hassle-free returns"        },
+                { icon: Shield,    title: "2-year warranty",     desc: "Official warranty included"      },
+                { icon: Package,   title: "Secure packaging",    desc: "Tamper-proof sealed packaging"   },
               ].map(({ icon: Icon, title, desc }) => (
                 <div key={title} className="flex items-center gap-3">
                   <div className="w-8 h-8 bg-white rounded-lg border border-gray-200 flex items-center justify-center shrink-0">
@@ -339,9 +358,13 @@ const ProductDetail = () => {
         <div className="border-b border-gray-200 mb-8">
           <div className="flex gap-0">
             {[
-              { id: "description", label: "Description",   icon: MessageSquare },
+              { id: "description", label: "Description",    icon: MessageSquare },
               { id: "specs",       label: "Specifications", icon: Package       },
-              { id: "reviews",     label: `Reviews (${product.reviewCount?.toLocaleString()})`, icon: Star },
+              {
+                id:    "reviews",
+                label: `Reviews (${product.reviewCount?.toLocaleString() || 0})`,
+                icon:  Star,
+              },
             ].map(({ id, label, icon: Icon }) => (
               <button
                 key={id}
@@ -362,7 +385,7 @@ const ProductDetail = () => {
         {/* Description tab */}
         {activeTab === "description" && (
           <div className="max-w-3xl mb-12">
-            <p className="text-gray-600 leading-relaxed text-sm mb-6">
+            <p className="text-gray-600 leading-relaxed text-sm">
               {product.description}
             </p>
           </div>
@@ -376,9 +399,13 @@ const ProductDetail = () => {
                 {product.specifications.map((spec, i) => (
                   <div
                     key={spec.label}
-                    className={`flex items-center px-5 py-3.5 text-sm ${i % 2 === 0 ? "bg-gray-50" : "bg-white"}`}
+                    className={`flex items-center px-5 py-3.5 text-sm ${
+                      i % 2 === 0 ? "bg-gray-50" : "bg-white"
+                    }`}
                   >
-                    <span className="w-48 font-medium text-gray-600 shrink-0">{spec.label}</span>
+                    <span className="w-48 font-medium text-gray-600 shrink-0">
+                      {spec.label}
+                    </span>
                     <span className="text-gray-900">{spec.value}</span>
                   </div>
                 ))}
@@ -391,12 +418,12 @@ const ProductDetail = () => {
 
         {/* Reviews tab */}
         {activeTab === "reviews" && (
-         <ReviewsSection
-           productId={id}
-           productRating={product.rating}
-           reviewCount={product.reviewCount}
-         />
-       )}
+          <ReviewsSection
+            productId={id}
+            productRating={product.rating}
+            reviewCount={product.reviewCount}
+          />
+        )}
 
         {/* Related products */}
         {related.length > 0 && (
