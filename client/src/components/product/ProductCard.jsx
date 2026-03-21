@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Heart, ShoppingCart, Star, Eye } from "lucide-react";
 import { useCart } from "@/hooks/useCart";
 import { formatPrice, calcDiscount } from "@/utils/formatPrice";
 import toast from "react-hot-toast";
 
 const ProductCard = ({ product }) => {
-  const { addItem } = useCart();
+  const { addItem }  = useCart();
+  const navigate     = useNavigate();
   const [wishlisted, setWishlisted] = useState(false);
-  const [adding, setAdding] = useState(false);
+  const [adding,     setAdding]     = useState(false);
 
   const {
     _id,
@@ -21,24 +22,33 @@ const ProductCard = ({ product }) => {
     reviewCount,
     stock,
     isNew,
+    newArrival,
     isFeatured,
   } = product;
+
+  const categoryName =
+    typeof category === "object" && category !== null
+      ? category.name
+      : category || "";
 
   const discount =
     originalPrice && originalPrice > price
       ? calcDiscount(originalPrice, price)
       : null;
 
-  const handleAddToCart = async (e) => {
+  const handleAddToCart = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     setAdding(true);
     addItem({
       _id,
       name,
       price,
-      image: images?.[0],
+      image:         images?.[0]?.url || images?.[0],
+      category:      categoryName,
       selectedColor: null,
-      selectedSize: null,
+      selectedSize:  null,
+      quantity:      1,
     });
     toast.success(`${name} added to cart`);
     setTimeout(() => setAdding(false), 600);
@@ -46,8 +56,15 @@ const ProductCard = ({ product }) => {
 
   const handleWishlist = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     setWishlisted((p) => !p);
     toast.success(wishlisted ? "Removed from wishlist" : "Added to wishlist");
+  };
+
+  const handleEyeClick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    navigate(`/products/${_id}`);
   };
 
   return (
@@ -57,9 +74,9 @@ const ProductCard = ({ product }) => {
     >
       {/* Image area */}
       <div className="relative aspect-square bg-gray-50 overflow-hidden">
-        {images?.[0]?.url ? (
+        {images?.[0]?.url || images?.[0] ? (
           <img
-            src={images[0].url}
+            src={images[0]?.url || images[0]}
             alt={name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
@@ -76,7 +93,7 @@ const ProductCard = ({ product }) => {
               -{discount}%
             </span>
           )}
-          {isNew && (
+          {(isNew || newArrival) && (
             <span className="badge bg-green-500 text-white text-[10px] px-2 py-0.5">
               New
             </span>
@@ -88,7 +105,7 @@ const ProductCard = ({ product }) => {
           )}
         </div>
 
-        {/* Action buttons */}
+        {/* Action buttons — use buttons not Links to avoid nested <a> */}
         <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0 transition-all duration-200">
           <button
             onClick={handleWishlist}
@@ -99,13 +116,12 @@ const ProductCard = ({ product }) => {
               className={wishlisted ? "fill-red-500 text-red-500" : "text-gray-400"}
             />
           </button>
-          <Link
-            to={`/products/${_id}`}
-            onClick={(e) => e.stopPropagation()}
+          <button
+            onClick={handleEyeClick}
             className="w-8 h-8 bg-white rounded-full shadow-sm flex items-center justify-center hover:bg-primary-50 transition-colors border border-gray-100"
           >
             <Eye size={14} className="text-gray-400" />
-          </Link>
+          </button>
         </div>
 
         {/* Out of stock overlay */}
@@ -121,7 +137,7 @@ const ProductCard = ({ product }) => {
       {/* Info */}
       <div className="flex flex-col flex-1 p-4 gap-2">
         <p className="text-xs text-primary-600 font-medium uppercase tracking-wider">
-          {category}
+          {categoryName}
         </p>
         <h3 className="text-sm font-medium text-gray-900 leading-snug line-clamp-2 group-hover:text-primary-700 transition-colors">
           {name}

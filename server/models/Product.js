@@ -76,15 +76,22 @@ const productSchema = new mongoose.Schema(
     timestamps: true,
     toJSON:     { virtuals: true },
     toObject:   { virtuals: true },
+    suppressReservedKeysWarning: true,
   }
 );
 
 // Slug
-productSchema.pre("save", function (next) {
+productSchema.pre("save", async function (next) {
   if (this.isModified("name")) {
-    this.slug = slugify(this.name, { lower: true, strict: true });
+    let slug = slugify(this.name, { lower: true, strict: true });
+
+    const existing = await mongoose.model("Product").findOne({ slug });
+    if (existing && existing._id.toString() !== this._id.toString()) {
+      slug = `${slug}-${Date.now()}`;
+    }
+
+    this.slug = slug;
   }
-  next();
 });
 
 // Virtual for discount percentage

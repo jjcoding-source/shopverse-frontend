@@ -71,51 +71,57 @@ export const getRelatedProducts = async (req, res) => {
 
 
 export const createProduct = async (req, res) => {
-  // Handle uploaded images from Cloudinary via Multer
-  const images = req.files?.map((file) => ({
+  console.log("--- createProduct called ---");
+  console.log("req.body:", req.body);
+  console.log("req.files:", req.files);
+
+const images = req.files?.map((file) => {
+  console.log("File from multer:", {
+    fieldname:  file.fieldname,
+    filename:   file.filename,
+    path:       file.path,
+    mimetype:   file.mimetype,
+  });
+
+  return {
     public_id: file.filename,
     url:       file.path,
-  })) || [];
+  };
+}) || [];
+
+  console.log("images:", images);
 
   let categoryId = req.body.category;
+  console.log("categoryId before resolve:", categoryId);
 
   if (categoryId) {
-    // Check if it's already a valid ObjectId
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(categoryId);
-
     if (!isObjectId) {
-     
       const cat = await Category.findOne({
         name: { $regex: `^${categoryId}$`, $options: "i" },
       });
-
-      if (cat) {
-        categoryId = cat._id;
-      } else {
-        // Category not found — create it
-        const newCat = await Category.create({ name: categoryId });
-        categoryId   = newCat._id;
-      }
+      categoryId = cat ? cat._id : (await Category.create({ name: categoryId }))._id;
     }
   }
 
-  const product = await Product.create({
-    name:        req.body.name,
-    description: req.body.description,
-    price:       Number(req.body.price),
+  console.log("categoryId after resolve:", categoryId);
+
+  const productData = {
+    name:        req.body.name        || "Unnamed product",
+    description: req.body.description || "No description",
+    price:       Number(req.body.price) || 0,
     stock:       Number(req.body.stock) || 0,
-    brand:       req.body.brand,
+    brand:       req.body.brand       || "Unknown",
     category:    categoryId,
     images,
-    isFeatured:  req.body.isFeatured === "true" || false,
-    newArrival:  req.body.newArrival  === "true" || false,
-    colors:      req.body.colors  ? req.body.colors.split(",").map((c) => c.trim())  : [],
-    sizes:       req.body.sizes   ? req.body.sizes.split(",").map((s) => s.trim())   : [],
-    tags:        req.body.tags    ? req.body.tags.split(",").map((t) => t.trim())    : [],
-  });
+  };
+
+  console.log("productData:", productData);
+
+  const product = await Product.create(productData);
+  console.log("product created:", product._id);
 
   await product.populate("category", "name slug");
-
   res.status(201).json({ success: true, product });
 };
 
@@ -134,7 +140,6 @@ export const updateProduct = async (req, res) => {
     url:       file.path,
   }));
 
-  // Resolve category name to ID if needed
   let categoryId = req.body.category;
   if (categoryId) {
     const isObjectId = /^[0-9a-fA-F]{24}$/.test(categoryId);
