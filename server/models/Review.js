@@ -65,12 +65,12 @@ reviewSchema.statics.calcAverageRating = async function (productId) {
   }
 };
 
-reviewSchema.post("save", function () {
-  this.constructor.calcAverageRating(this.product);
+reviewSchema.post("save", async function () {
+  await this.constructor.calcAverageRating(this.product);
 });
 
-reviewSchema.post("remove", function () {
-  this.constructor.calcAverageRating(this.product);
+reviewSchema.post("deleteOne", { document: true }, async function () {
+  await this.constructor.calcAverageRating(this.product);
 });
 
 const Review = mongoose.model("Review", reviewSchema);

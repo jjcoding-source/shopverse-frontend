@@ -81,15 +81,13 @@ const productSchema = new mongoose.Schema(
 );
 
 // Slug
-productSchema.pre("save", async function (next) {
+productSchema.pre("save", async function () {
   if (this.isModified("name")) {
     let slug = slugify(this.name, { lower: true, strict: true });
-
     const existing = await mongoose.model("Product").findOne({ slug });
     if (existing && existing._id.toString() !== this._id.toString()) {
       slug = `${slug}-${Date.now()}`;
     }
-
     this.slug = slug;
   }
 });
