@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { useParams, Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import {
   Star, ShoppingCart, Heart, Share2,
   Truck, RefreshCw, Shield, ChevronRight,
@@ -15,6 +14,9 @@ import { productsAPI }   from "@/store/api/productsApi";
 import { authAPI }       from "@/store/api/authApi";
 import { useAuth }       from "@/hooks/useAuth";
 import toast             from "react-hot-toast";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { reviewsAPI } from "@/store/api/reviewsApi";
+import ReviewsSection from "@/components/product/ReviewsSection";
 
 const RATING_DIST = [
   { star: 5, pct: 88 },
@@ -45,7 +47,10 @@ const ProductDetail = () => {
   const [selectedColor, setSelectedColor] = useState(null);
   const [qty,           setQty]           = useState(1);
   const [wishlisted,    setWishlisted]    = useState(false);
-  const [activeTab,     setActiveTab]     = useState("description");
+  const [searchParams]  = useSearchParams();
+  const [activeTab, setActiveTab] = useState(
+  searchParams.get("tab") || "description"
+ );
   const [adding,        setAdding]        = useState(false);
 
   const { data: productData, isLoading } = useQuery({
@@ -386,35 +391,12 @@ const ProductDetail = () => {
 
         {/* Reviews tab */}
         {activeTab === "reviews" && (
-          <div className="mb-12">
-            <div className="grid lg:grid-cols-3 gap-8">
-              <div className="card p-6 text-center">
-                <div className="text-5xl font-bold text-gray-900 mb-1">{product.rating}</div>
-                <StarRow count={18} filled={Math.round(product.rating)} />
-                <p className="text-sm text-gray-400 mt-2">
-                  {product.reviewCount?.toLocaleString()} reviews
-                </p>
-                <div className="mt-5 space-y-2">
-                  {RATING_DIST.map(({ star, pct }) => (
-                    <div key={star} className="flex items-center gap-2">
-                      <span className="text-xs text-gray-500 w-6 text-right">{star}</span>
-                      <Star size={11} className="fill-amber-400 text-amber-400 shrink-0" />
-                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="h-full bg-amber-400 rounded-full" style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className="text-xs text-gray-400 w-8">{pct}%</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="lg:col-span-2">
-                <p className="text-gray-400 text-sm text-center py-8">
-                  Reviews will appear here once customers start purchasing.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
+         <ReviewsSection
+           productId={id}
+           productRating={product.rating}
+           reviewCount={product.reviewCount}
+         />
+       )}
 
         {/* Related products */}
         {related.length > 0 && (

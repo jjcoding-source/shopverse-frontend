@@ -389,10 +389,16 @@ const OrderHistory = () => {
                     )}
 
                     {order.status === "delivered" && (
-                      <button className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-primary-600 transition-colors">
+                      order.items?.map((item) => (
+                       <Link
+                         key={item.product}
+                         to={`/products/${item.product}?tab=reviews`}
+                        className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-primary-600 transition-colors"
+                       >
                         <Star size={12} />
-                        Write review
-                      </button>
+                        Review {item.name.split(" ").slice(0, 2).join(" ")}
+                      </Link>
+                     ))
                     )}
 
                     {["processing", "packed"].includes(order.status) && (
