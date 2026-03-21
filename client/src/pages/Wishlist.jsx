@@ -1,106 +1,18 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Heart,
-  ShoppingCart,
-  Trash2,
-  Star,
-  ChevronRight,
-  Share2,
-  SlidersHorizontal,
-  X,
-  Package,
+  Heart, ShoppingCart, Trash2, Star,
+  ChevronRight, Share2, SlidersHorizontal,
+  X, Package,
 } from "lucide-react";
-import { useCart } from "@/hooks/useCart";
+import { useCart }      from "@/hooks/useCart";
+import { useWishlist }  from "@/hooks/useWishlist";
+import { useAuth }      from "@/hooks/useAuth";
+import { authAPI }      from "@/store/api/authApi";
 import { formatPrice, calcDiscount } from "@/utils/formatPrice";
-import toast from "react-hot-toast";
-
-const INITIAL_WISHLIST = [
-  {
-    _id: "w1",
-    name: "Bose QuietComfort Ultra Earbuds",
-    price: 179,
-    originalPrice: null,
-    category: "Electronics",
-    brand: "Bose",
-    rating: 4.6,
-    reviewCount: 1420,
-    stock: 8,
-    inStock: true,
-    images: [],
-    addedOn: "March 15, 2025",
-  },
-  {
-    _id: "w2",
-    name: "MacBook Air M3 15-inch Laptop",
-    price: 1099,
-    originalPrice: null,
-    category: "Electronics",
-    brand: "Apple",
-    rating: 4.9,
-    reviewCount: 987,
-    stock: 5,
-    inStock: true,
-    images: [],
-    addedOn: "March 10, 2025",
-  },
-  {
-    _id: "w3",
-    name: "Linen Wide-Leg Trousers — Spring Collection",
-    price: 72,
-    originalPrice: 90,
-    category: "Fashion",
-    brand: "Zara",
-    rating: 4.3,
-    reviewCount: 411,
-    stock: 18,
-    inStock: true,
-    images: [],
-    addedOn: "March 5, 2025",
-  },
-  {
-    _id: "w4",
-    name: "Scented Soy Candle Set — Lavender & Cedar",
-    price: 28,
-    originalPrice: null,
-    category: "Home & Living",
-    brand: "Diptyque",
-    rating: 4.6,
-    reviewCount: 304,
-    stock: 0,
-    inStock: false,
-    images: [],
-    addedOn: "February 28, 2025",
-  },
-  {
-    _id: "w5",
-    name: "Sony Alpha A7C II Mirrorless Camera",
-    price: 2199,
-    originalPrice: 2499,
-    category: "Electronics",
-    brand: "Sony",
-    rating: 4.8,
-    reviewCount: 562,
-    stock: 3,
-    inStock: true,
-    images: [],
-    addedOn: "February 20, 2025",
-  },
-  {
-    _id: "w6",
-    name: "Urban Runner Sneakers — Lightweight",
-    price: 64,
-    originalPrice: 80,
-    category: "Fashion",
-    brand: "Nike",
-    rating: 4.7,
-    reviewCount: 876,
-    stock: 20,
-    inStock: true,
-    images: [],
-    addedOn: "February 12, 2025",
-  },
-];
+import Loader           from "@/components/common/Loader";
+import toast            from "react-hot-toast";
 
 const StarRow = ({ rating }) => (
   <div className="flex items-center gap-0.5">
@@ -119,80 +31,106 @@ const StarRow = ({ rating }) => (
 );
 
 const Wishlist = () => {
-  const { addItem } = useCart();
+  const { addItem }         = useCart();
+  const { toggle }          = useWishlist();
+  const { isAuthenticated } = useAuth();
+  const navigate            = useNavigate();
+  const queryClient         = useQueryClient();
 
-  const [items,    setItems]    = useState(INITIAL_WISHLIST);
   const [sortBy,   setSortBy]   = useState("newest");
   const [filterBy, setFilterBy] = useState("all");
   const [viewMode, setViewMode] = useState("grid");
 
-  const categories = ["all", ...new Set(INITIAL_WISHLIST.map((i) => i.category))];
+  // Fetch full wishlist products from backend
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["wishlist"],
+    queryFn:  () => authAPI.getMe().then((r) => r.data.user.wishlist || []),
+    enabled:  isAuthenticated,
+  });
 
-  const handleRemove = (id) => {
-    setItems((p) => p.filter((i) => i._id !== id));
-    toast.success("Removed from wishlist");
+  const items = Array.isArray(data) ? data : [];
+
+  const wishlistProducts = items.filter(Boolean);
+
+  const categories = [
+    "all",
+    ...new Set(
+      wishlistProducts
+        .map((p) => p?.category?.name || p?.category || "")
+        .filter(Boolean)
+    ),
+  ];
+
+  const filtered = wishlistProducts.filter((p) => {
+    if (!p) return false;
+    if (filterBy === "all") return true;
+    const catName = p?.category?.name || p?.category || "";
+    return catName === filterBy;
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    if (sortBy === "price-asc")  return (a.price || 0) - (b.price || 0);
+    if (sortBy === "price-desc") return (b.price || 0) - (a.price || 0);
+    if (sortBy === "rating")     return (b.rating || 0) - (a.rating || 0);
+    return 0;
+  });
+
+  const handleRemove = (productId) => {
+    toggle(productId);
   };
 
-  const handleAddToCart = (item) => {
-    if (!item.inStock) return;
+  const handleAddToCart = (product) => {
+    if (!product.stock || product.stock === 0) {
+      toast.error("This product is out of stock");
+      return;
+    }
     addItem({
-      _id:          item._id,
-      name:         item.name,
-      price:        item.price,
-      image:        item.images?.[0],
-      category:     item.category,
+      _id:           product._id,
+      name:          product.name,
+      price:         product.price,
+      image:         product.images?.[0]?.url,
+      category:      product.category?.name || product.category,
       selectedColor: null,
       selectedSize:  null,
       quantity:      1,
     });
-    toast.success(`${item.name} added to cart`);
+    toast.success(`${product.name} added to cart`);
   };
 
   const handleAddAllToCart = () => {
-    const inStockItems = items.filter((i) => i.inStock);
-    inStockItems.forEach((item) => {
-      addItem({
-        _id:           item._id,
-        name:          item.name,
-        price:         item.price,
-        image:         item.images?.[0],
-        category:      item.category,
-        selectedColor: null,
-        selectedSize:  null,
-        quantity:      1,
-      });
-    });
-    toast.success(`${inStockItems.length} items added to cart`);
+    const inStock = sorted.filter((p) => p.stock > 0);
+    if (inStock.length === 0) {
+      toast.error("No in-stock items to add");
+      return;
+    }
+    inStock.forEach((p) => handleAddToCart(p));
+    toast.success(`${inStock.length} items added to cart`);
   };
 
   const handleShare = () => {
     navigator.clipboard?.writeText(window.location.href);
-    toast.success("Wishlist link copied to clipboard");
+    toast.success("Wishlist link copied");
   };
 
-  const handleClearAll = () => {
-    setItems([]);
-    toast.success("Wishlist cleared");
-  };
-
-  const filtered = items.filter(
-    (i) => filterBy === "all" || i.category === filterBy
-  );
-
-  const sorted = [...filtered].sort((a, b) => {
-    if (sortBy === "newest")     return 0;
-    if (sortBy === "price-asc")  return a.price - b.price;
-    if (sortBy === "price-desc") return b.price - a.price;
-    if (sortBy === "rating")     return b.rating - a.rating;
-    return 0;
-  });
-
-  const inStockCount = items.filter((i) => i.inStock).length;
+  if (!isAuthenticated) {
+    return (
+      <div className="bg-gray-50 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <Heart size={48} className="text-gray-200 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Sign in to view wishlist</h2>
+          <p className="text-gray-500 text-sm mb-6">
+            Save your favourite products and access them anywhere.
+          </p>
+          <Link to="/login" className="btn-primary">Sign in</Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gray-50 min-h-screen">
 
-      {/* Page header */}
+      {/* Header */}
       <div className="bg-white border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           {/* Breadcrumb */}
@@ -211,12 +149,13 @@ const Wishlist = () => {
                 My wishlist
               </h1>
               <p className="text-sm text-gray-500 mt-0.5">
-                {items.length} saved item{items.length !== 1 ? "s" : ""} ·{" "}
-                {inStockCount} in stock
+                {isLoading
+                  ? "Loading..."
+                  : `${wishlistProducts.length} saved item${wishlistProducts.length !== 1 ? "s" : ""}`}
               </p>
             </div>
 
-            {items.length > 0 && (
+            {wishlistProducts.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
                 <button
                   onClick={handleShare}
@@ -226,19 +165,11 @@ const Wishlist = () => {
                   Share
                 </button>
                 <button
-                  onClick={handleClearAll}
-                  className="flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-red-500 border border-gray-200 hover:border-red-200 px-4 py-2 rounded-xl transition-colors"
-                >
-                  <Trash2 size={14} />
-                  Clear all
-                </button>
-                <button
                   onClick={handleAddAllToCart}
-                  disabled={inStockCount === 0}
-                  className="flex items-center gap-1.5 text-sm font-semibold bg-primary-600 hover:bg-primary-800 disabled:bg-gray-200 disabled:cursor-not-allowed text-white px-5 py-2 rounded-xl transition-colors"
+                  className="flex items-center gap-1.5 text-sm font-semibold bg-primary-600 hover:bg-primary-800 text-white px-5 py-2 rounded-xl transition-colors"
                 >
                   <ShoppingCart size={14} />
-                  Add all to cart ({inStockCount})
+                  Add all to cart
                 </button>
               </div>
             )}
@@ -248,22 +179,29 @@ const Wishlist = () => {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
-        {items.length === 0 ? (
+        {isLoading ? (
+          <Loader text="Loading wishlist..." />
+        ) : isError ? (
+          <div className="bg-white border border-gray-100 rounded-2xl py-16 text-center">
+            <p className="text-red-500 font-medium text-sm">Failed to load wishlist</p>
+            <button
+              onClick={() => queryClient.invalidateQueries(["wishlist"])}
+              className="text-xs text-primary-600 mt-2 hover:underline"
+            >
+              Try again
+            </button>
+          </div>
+        ) : wishlistProducts.length === 0 ? (
           /* Empty state */
           <div className="bg-white border border-gray-100 rounded-2xl py-24 text-center">
             <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-5">
               <Heart size={32} className="text-red-200" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900 mb-2">
-              Your wishlist is empty
-            </h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-2">Your wishlist is empty</h2>
             <p className="text-gray-500 text-sm mb-8 max-w-xs mx-auto">
-              Save items you love by clicking the heart icon on any product. They'll appear here.
+              Save items you love by clicking the heart icon on any product.
             </p>
-            <Link
-              to="/products"
-              className="inline-flex items-center gap-2 btn-primary"
-            >
+            <Link to="/products" className="btn-primary inline-flex items-center gap-2">
               <ShoppingCart size={16} />
               Browse products
             </Link>
@@ -284,7 +222,7 @@ const Wishlist = () => {
                         : "bg-white text-gray-600 border-gray-200 hover:border-primary-300"
                     }`}
                   >
-                    {cat === "all" ? `All (${items.length})` : cat}
+                    {cat === "all" ? `All (${wishlistProducts.length})` : cat}
                   </button>
                 ))}
               </div>
@@ -331,9 +269,7 @@ const Wishlist = () => {
             {sorted.length === 0 ? (
               <div className="bg-white border border-gray-100 rounded-2xl py-16 text-center">
                 <X size={32} className="text-gray-200 mx-auto mb-3" />
-                <p className="text-gray-500 font-medium text-sm">
-                  No items in this category
-                </p>
+                <p className="text-gray-500 font-medium text-sm">No items in this category</p>
                 <button
                   onClick={() => setFilterBy("all")}
                   className="text-xs text-primary-600 font-medium mt-2 hover:underline"
@@ -344,26 +280,33 @@ const Wishlist = () => {
             ) : viewMode === "grid" ? (
               /* Grid view */
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-5">
-                {sorted.map((item) => {
-                  const discount = item.originalPrice
-                    ? calcDiscount(item.originalPrice, item.price)
+                {sorted.map((product) => {
+                  if (!product?._id) return null;
+                  const discount = product.originalPrice
+                    ? calcDiscount(product.originalPrice, product.price)
                     : null;
+                  const categoryName = product.category?.name || product.category || "";
 
                   return (
                     <div
-                      key={item._id}
+                      key={product._id}
                       className="bg-white border border-gray-100 rounded-2xl overflow-hidden hover:border-primary-200 hover:shadow-md transition-all group"
                     >
                       {/* Image */}
-                      <div className="relative aspect-square bg-gray-50 flex items-center justify-center">
-                        {item.images?.[0] ? (
+                      <div className="relative aspect-square bg-gray-50 flex items-center justify-center overflow-hidden">
+                        {product.images?.[0]?.url ? (
                           <img
-                            src={item.images[0]}
-                            alt={item.name}
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                            src={product.images[0].url}
+                            alt={product.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 cursor-pointer"
+                            onClick={() => navigate(`/products/${product._id}`)}
                           />
                         ) : (
-                          <Heart size={36} className="text-gray-100" />
+                          <Heart
+                            size={36}
+                            className="text-gray-100 cursor-pointer"
+                            onClick={() => navigate(`/products/${product._id}`)}
+                          />
                         )}
 
                         {/* Badges */}
@@ -373,7 +316,7 @@ const Wishlist = () => {
                               -{discount}%
                             </span>
                           )}
-                          {!item.inStock && (
+                          {!product.stock && (
                             <span className="badge bg-gray-500 text-white text-[10px] px-2 py-0.5">
                               Out of stock
                             </span>
@@ -382,52 +325,56 @@ const Wishlist = () => {
 
                         {/* Remove button */}
                         <button
-                          onClick={() => handleRemove(item._id)}
+                          onClick={() => handleRemove(product._id)}
                           className="absolute top-2.5 right-2.5 w-7 h-7 bg-white rounded-full shadow-sm border border-gray-100 flex items-center justify-center hover:bg-red-50 hover:border-red-200 transition-colors opacity-0 group-hover:opacity-100"
                         >
-                          <X size={12} className="text-gray-400 hover:text-red-500" />
+                          <X size={12} className="text-red-400" />
                         </button>
                       </div>
 
                       {/* Info */}
                       <div className="p-4">
-                        <p className="text-xs text-primary-600 font-medium uppercase tracking-wider mb-1">
-                          {item.category}
-                        </p>
+                        {categoryName && (
+                          <p className="text-xs text-primary-600 font-medium uppercase tracking-wider mb-1">
+                            {categoryName}
+                          </p>
+                        )}
                         <Link
-                          to={`/products/${item._id}`}
+                          to={`/products/${product._id}`}
                           className="text-sm font-semibold text-gray-900 line-clamp-2 leading-snug hover:text-primary-600 transition-colors block mb-2"
                         >
-                          {item.name}
+                          {product.name}
                         </Link>
 
-                        <div className="flex items-center gap-1.5 mb-3">
-                          <StarRow rating={item.rating} />
-                          <span className="text-xs text-gray-400">
-                            ({item.reviewCount?.toLocaleString()})
-                          </span>
-                        </div>
+                        {product.rating > 0 && (
+                          <div className="flex items-center gap-1.5 mb-3">
+                            <StarRow rating={product.rating} />
+                            <span className="text-xs text-gray-400">
+                              ({product.reviewCount?.toLocaleString() || 0})
+                            </span>
+                          </div>
+                        )}
 
                         <div className="flex items-center justify-between">
                           <div>
                             <span className="text-base font-bold text-gray-900">
-                              {formatPrice(item.price)}
+                              {formatPrice(product.price)}
                             </span>
-                            {item.originalPrice && (
+                            {product.originalPrice && (
                               <span className="text-xs text-gray-400 line-through ml-1.5">
-                                {formatPrice(item.originalPrice)}
+                                {formatPrice(product.originalPrice)}
                               </span>
                             )}
                           </div>
                         </div>
 
                         <button
-                          onClick={() => handleAddToCart(item)}
-                          disabled={!item.inStock}
+                          onClick={() => handleAddToCart(product)}
+                          disabled={!product.stock}
                           className="w-full mt-3 flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-800 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed text-white text-sm font-medium py-2.5 rounded-xl transition-colors"
                         >
                           <ShoppingCart size={14} />
-                          {item.inStock ? "Add to cart" : "Out of stock"}
+                          {product.stock ? "Add to cart" : "Out of stock"}
                         </button>
                       </div>
                     </div>
@@ -437,20 +384,29 @@ const Wishlist = () => {
             ) : (
               /* List view */
               <div className="space-y-3">
-                {sorted.map((item) => {
-                  const discount = item.originalPrice
-                    ? calcDiscount(item.originalPrice, item.price)
+                {sorted.map((product) => {
+                  if (!product?._id) return null;
+                  const discount = product.originalPrice
+                    ? calcDiscount(product.originalPrice, product.price)
                     : null;
+                  const categoryName = product.category?.name || product.category || "";
 
                   return (
                     <div
-                      key={item._id}
+                      key={product._id}
                       className="bg-white border border-gray-100 rounded-2xl p-4 flex gap-4 hover:border-primary-200 hover:shadow-sm transition-all"
                     >
                       {/* Image */}
-                      <div className="w-24 h-24 bg-gray-50 rounded-xl flex items-center justify-center shrink-0 border border-gray-100">
-                        {item.images?.[0] ? (
-                          <img src={item.images[0]} alt={item.name} className="w-full h-full object-cover rounded-xl" />
+                      <div
+                        className="w-24 h-24 bg-gray-50 rounded-xl flex items-center justify-center shrink-0 border border-gray-100 cursor-pointer overflow-hidden"
+                        onClick={() => navigate(`/products/${product._id}`)}
+                      >
+                        {product.images?.[0]?.url ? (
+                          <img
+                            src={product.images[0].url}
+                            alt={product.name}
+                            className="w-full h-full object-cover rounded-xl"
+                          />
                         ) : (
                           <Heart size={24} className="text-gray-200" />
                         )}
@@ -460,44 +416,43 @@ const Wishlist = () => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <p className="text-xs text-primary-600 font-medium uppercase tracking-wider mb-0.5">
-                              {item.brand} · {item.category}
-                            </p>
+                            {categoryName && (
+                              <p className="text-xs text-primary-600 font-medium uppercase tracking-wider mb-0.5">
+                                {categoryName}
+                              </p>
+                            )}
                             <Link
-                              to={`/products/${item._id}`}
+                              to={`/products/${product._id}`}
                               className="text-sm font-semibold text-gray-900 hover:text-primary-600 transition-colors line-clamp-1 block"
                             >
-                              {item.name}
+                              {product.name}
                             </Link>
                           </div>
                           <button
-                            onClick={() => handleRemove(item._id)}
+                            onClick={() => handleRemove(product._id)}
                             className="p-1.5 rounded-lg text-gray-300 hover:text-red-400 hover:bg-red-50 transition-colors shrink-0"
                           >
                             <Trash2 size={14} />
                           </button>
                         </div>
 
-                        <div className="flex items-center gap-2 mt-1.5 mb-2">
-                          <StarRow rating={item.rating} />
-                          <span className="text-xs text-gray-400">
-                            {item.rating} ({item.reviewCount?.toLocaleString()})
-                          </span>
-                          {!item.inStock && (
-                            <span className="text-xs font-medium text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
-                              Out of stock
+                        {product.rating > 0 && (
+                          <div className="flex items-center gap-2 mt-1.5 mb-2">
+                            <StarRow rating={product.rating} />
+                            <span className="text-xs text-gray-400">
+                              {product.rating} ({product.reviewCount?.toLocaleString() || 0})
                             </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
 
                         <div className="flex items-center justify-between mt-auto">
                           <div className="flex items-baseline gap-2">
                             <span className="text-base font-bold text-gray-900">
-                              {formatPrice(item.price)}
+                              {formatPrice(product.price)}
                             </span>
-                            {item.originalPrice && (
+                            {product.originalPrice && (
                               <span className="text-xs text-gray-400 line-through">
-                                {formatPrice(item.originalPrice)}
+                                {formatPrice(product.originalPrice)}
                               </span>
                             )}
                             {discount && (
@@ -506,19 +461,14 @@ const Wishlist = () => {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-400">
-                              Added {item.addedOn}
-                            </span>
-                            <button
-                              onClick={() => handleAddToCart(item)}
-                              disabled={!item.inStock}
-                              className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-800 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors"
-                            >
-                              <ShoppingCart size={13} />
-                              {item.inStock ? "Add to cart" : "Unavailable"}
-                            </button>
-                          </div>
+                          <button
+                            onClick={() => handleAddToCart(product)}
+                            disabled={!product.stock}
+                            className="flex items-center gap-1.5 bg-primary-600 hover:bg-primary-800 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors"
+                          >
+                            <ShoppingCart size={13} />
+                            {product.stock ? "Add to cart" : "Unavailable"}
+                          </button>
                         </div>
                       </div>
                     </div>
