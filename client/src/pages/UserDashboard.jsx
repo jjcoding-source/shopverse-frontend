@@ -6,87 +6,73 @@ import {
   Truck, CheckCircle, Clock, XCircle, Edit2, Camera,
   ShoppingBag, Award, TrendingUp,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/useAuth";
+import { useCart } from "@/hooks/useCart";
 import { formatPrice } from "@/utils/formatPrice";
+import { ordersAPI } from "@/store/api/ordersApi";
+import { authAPI } from "@/store/api/authApi";
 import toast from "react-hot-toast";
 
-const MOCK_ORDERS = [
-  {
-    _id: "o1", number: "SV-20250318", date: "March 18, 2025",
-    status: "transit", total: 760.42, itemCount: 3,
-    items: [
-      { name: "Sony WH-1000XM5",      price: 279, qty: 1 },
-      { name: "Apple Watch Series 10", price: 399, qty: 1 },
-      { name: "Urban Runner Sneakers", price: 128, qty: 2 },
-    ],
-  },
-  {
-    _id: "o2", number: "SV-20250228", date: "February 28, 2025",
-    status: "delivered", total: 218.00, itemCount: 2,
-    items: [
-      { name: "Premium Hoodie",   price: 49, qty: 1 },
-      { name: "Coffee Pour Set",  price: 38, qty: 1 },
-    ],
-  },
-  {
-    _id: "o3", number: "SV-20250110", date: "January 10, 2025",
-    status: "delivered", total: 1099.00, itemCount: 1,
-    items: [{ name: "MacBook Air M3", price: 1099, qty: 1 }],
-  },
-  {
-    _id: "o4", number: "SV-20241215", date: "December 15, 2024",
-    status: "cancelled", total: 89.00, itemCount: 1,
-    items: [{ name: "Wireless Charger", price: 89, qty: 1 }],
-  },
-];
-
 const MOCK_WISHLIST = [
-  { _id: "w1", name: "Bose QuietComfort Ultra Earbuds",       price: 179, originalPrice: null, rating: 4.6, category: "Electronics", inStock: true  },
-  { _id: "w2", name: "MacBook Air M3 15-inch",                price: 1099,originalPrice: null, rating: 4.9, category: "Electronics", inStock: true  },
-  { _id: "w3", name: "Linen Wide-Leg Trousers",               price: 72,  originalPrice: 90,   rating: 4.3, category: "Fashion",     inStock: true  },
-  { _id: "w4", name: "Scented Soy Candle Set",                price: 28,  originalPrice: null, rating: 4.6, category: "Home",        inStock: false },
+  { _id: "w1", name: "Bose QuietComfort Ultra Earbuds", price: 179, originalPrice: null, rating: 4.6, category: "Electronics", inStock: true  },
+  { _id: "w2", name: "MacBook Air M3 15-inch",          price: 1099,originalPrice: null, rating: 4.9, category: "Electronics", inStock: true  },
+  { _id: "w3", name: "Linen Wide-Leg Trousers",         price: 72,  originalPrice: 90,   rating: 4.3, category: "Fashion",     inStock: true  },
+  { _id: "w4", name: "Scented Soy Candle Set",          price: 28,  originalPrice: null, rating: 4.6, category: "Home",        inStock: false },
 ];
 
 const STATUS_CONFIG = {
-  processing: { label: "Processing",   color: "bg-primary-50 text-primary-600",  icon: Clock        },
-  transit:    { label: "In transit",   color: "bg-amber-50 text-amber-600",      icon: Truck        },
-  delivered:  { label: "Delivered",    color: "bg-green-50 text-green-600",      icon: CheckCircle  },
-  cancelled:  { label: "Cancelled",    color: "bg-red-50 text-red-500",          icon: XCircle      },
+  processing: { label: "Processing", color: "bg-primary-50 text-primary-600", icon: Clock       },
+  packed:     { label: "Packed",     color: "bg-blue-50 text-blue-600",       icon: Package     },
+  shipped:    { label: "Shipped",    color: "bg-indigo-50 text-indigo-600",   icon: Truck       },
+  transit:    { label: "In transit", color: "bg-amber-50 text-amber-600",     icon: Truck       },
+  delivered:  { label: "Delivered",  color: "bg-green-50 text-green-600",     icon: CheckCircle },
+  cancelled:  { label: "Cancelled",  color: "bg-red-50 text-red-500",         icon: XCircle     },
 };
 
 const NAV_ITEMS = [
-  { id: "overview",  label: "Overview",         icon: LayoutDashboard },
-  { id: "orders",    label: "My orders",        icon: Package         },
-  { id: "wishlist",  label: "Wishlist",         icon: Heart           },
-  { id: "addresses", label: "Addresses",        icon: MapPin          },
-  { id: "payment",   label: "Payment methods",  icon: CreditCard      },
-  { id: "profile",   label: "Profile",          icon: User            },
-  { id: "settings",  label: "Settings",         icon: Settings        },
+  { id: "overview",  label: "Overview",        icon: LayoutDashboard },
+  { id: "orders",    label: "My orders",       icon: Package         },
+  { id: "wishlist",  label: "Wishlist",        icon: Heart           },
+  { id: "addresses", label: "Addresses",       icon: MapPin          },
+  { id: "payment",   label: "Payment methods", icon: CreditCard      },
+  { id: "profile",   label: "Profile",         icon: User            },
+  { id: "settings",  label: "Settings",        icon: Settings        },
 ];
 
 const UserDashboard = () => {
   const { user, signOut } = useAuth();
+  const { addItem }       = useCart();
+
   const [activeTab,   setActiveTab]   = useState("overview");
   const [orderFilter, setOrderFilter] = useState("all");
   const [wishlist,    setWishlist]    = useState(MOCK_WISHLIST);
 
+  // Fetch real orders from backend
+  const { data: ordersData, isLoading: ordersLoading } = useQuery({
+    queryKey: ["my-orders"],
+    queryFn:  () => ordersAPI.getMyOrders().then((r) => r.data),
+  });
+
+  const orders         = ordersData?.orders || [];
+  const totalSpent     = orders
+    .filter((o) => o.status !== "cancelled")
+    .reduce((s, o) => s + o.totalPrice, 0);
+  const deliveredCount = orders.filter((o) => o.status === "delivered").length;
+
   const filteredOrders = orderFilter === "all"
-    ? MOCK_ORDERS
-    : MOCK_ORDERS.filter((o) => o.status === orderFilter);
+    ? orders
+    : orders.filter((o) => o.status === orderFilter);
 
   const removeWishlist = (id) => {
     setWishlist((p) => p.filter((w) => w._id !== id));
     toast.success("Removed from wishlist");
   };
 
-  const totalSpent    = MOCK_ORDERS.filter((o) => o.status !== "cancelled").reduce((s, o) => s + o.total, 0);
-  const deliveredCount = MOCK_ORDERS.filter((o) => o.status === "delivered").length;
-
   // ── Sidebar ──
   const Sidebar = () => (
     <aside className="w-full lg:w-64 shrink-0">
       <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
-        {/* User card */}
         <div className="bg-primary-900 p-6 text-center relative">
           <div className="relative inline-block mb-3">
             <div className="w-16 h-16 rounded-full bg-primary-400 flex items-center justify-center text-xl font-bold text-white mx-auto">
@@ -104,7 +90,6 @@ const UserDashboard = () => {
           </div>
         </div>
 
-        {/* Nav */}
         <div className="p-2">
           {NAV_ITEMS.map(({ id, label, icon: Icon }) => (
             <button
@@ -121,6 +106,11 @@ const UserDashboard = () => {
               {id === "wishlist" && wishlist.length > 0 && (
                 <span className="ml-auto text-[10px] font-bold bg-red-100 text-red-500 w-5 h-5 rounded-full flex items-center justify-center">
                   {wishlist.length}
+                </span>
+              )}
+              {id === "orders" && orders.length > 0 && (
+                <span className="ml-auto text-[10px] font-bold bg-primary-100 text-primary-600 w-5 h-5 rounded-full flex items-center justify-center">
+                  {orders.length}
                 </span>
               )}
             </button>
@@ -142,13 +132,32 @@ const UserDashboard = () => {
   // ── Overview tab ──
   const Overview = () => (
     <div className="space-y-5">
-      {/* Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { icon: Package,     label: "Total orders",   value: MOCK_ORDERS.length,           sub: "Lifetime"          },
-          { icon: TrendingUp,  label: "Total spent",    value: formatPrice(totalSpent),      sub: "Since Jan 2024"    },
-          { icon: CheckCircle, label: "Delivered",      value: deliveredCount,               sub: "Successfully"      },
-          { icon: Award,       label: "Reward points",  value: "2,460",                      sub: "≈ $24.60 value"    },
+          {
+            icon:  Package,
+            label: "Total orders",
+            value: ordersLoading ? "..." : orders.length,
+            sub:   "Lifetime",
+          },
+          {
+            icon:  TrendingUp,
+            label: "Total spent",
+            value: ordersLoading ? "..." : formatPrice(totalSpent),
+            sub:   "Since joining",
+          },
+          {
+            icon:  CheckCircle,
+            label: "Delivered",
+            value: ordersLoading ? "..." : deliveredCount,
+            sub:   "Successfully",
+          },
+          {
+            icon:  Award,
+            label: "Reward points",
+            value: "2,460",
+            sub:   "≈ $24.60 value",
+          },
         ].map(({ icon: Icon, label, value, sub }) => (
           <div key={label} className="bg-white border border-gray-100 rounded-2xl p-4">
             <div className="w-9 h-9 bg-primary-50 rounded-xl flex items-center justify-center mb-3">
@@ -172,32 +181,47 @@ const UserDashboard = () => {
             View all <ChevronRight size={13} />
           </button>
         </div>
-        <div className="space-y-3">
-          {MOCK_ORDERS.slice(0, 3).map((order) => {
-            const cfg = STATUS_CONFIG[order.status];
-            const Icon = cfg.icon;
-            return (
-              <div key={order._id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center">
-                    <ShoppingBag size={16} className="text-gray-300" />
+
+        {ordersLoading ? (
+          <div className="py-8 text-center text-sm text-gray-400">Loading orders...</div>
+        ) : orders.length === 0 ? (
+          <div className="py-8 text-center">
+            <ShoppingBag size={32} className="text-gray-200 mx-auto mb-3" />
+            <p className="text-sm text-gray-400">No orders yet</p>
+            <Link to="/products" className="btn-primary text-xs mt-3 inline-block">
+              Start shopping
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {orders.slice(0, 3).map((order) => {
+              const cfg  = STATUS_CONFIG[order.status] || STATUS_CONFIG.processing;
+              const Icon = cfg.icon;
+              return (
+                <div key={order._id} className="flex items-center justify-between py-3 border-b border-gray-100 last:border-0">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gray-50 rounded-xl flex items-center justify-center">
+                      <ShoppingBag size={16} className="text-gray-300" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">#{order.orderNumber}</p>
+                      <p className="text-xs text-gray-400">
+                        {new Date(order.createdAt).toLocaleDateString()} · {order.items.length} items
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">#{order.number}</p>
-                    <p className="text-xs text-gray-400">{order.date} · {order.itemCount} items</p>
+                  <div className="text-right flex flex-col items-end gap-1">
+                    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${cfg.color}`}>
+                      <Icon size={10} />
+                      {cfg.label}
+                    </span>
+                    <p className="text-sm font-bold text-gray-900">{formatPrice(order.totalPrice)}</p>
                   </div>
                 </div>
-                <div className="text-right flex flex-col items-end gap-1">
-                  <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${cfg.color}`}>
-                    <Icon size={10} />
-                    {cfg.label}
-                  </span>
-                  <p className="text-sm font-bold text-gray-900">{formatPrice(order.total)}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Wishlist preview */}
@@ -231,14 +255,13 @@ const UserDashboard = () => {
   // ── Orders tab ──
   const Orders = () => (
     <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
-      {/* Filter tabs */}
       <div className="flex border-b border-gray-100 overflow-x-auto">
         {[
-          { id: "all",       label: "All orders"  },
-          { id: "processing",label: "Processing"  },
-          { id: "transit",   label: "In transit"  },
-          { id: "delivered", label: "Delivered"   },
-          { id: "cancelled", label: "Cancelled"   },
+          { id: "all",        label: "All orders"  },
+          { id: "processing", label: "Processing"  },
+          { id: "transit",    label: "In transit"  },
+          { id: "delivered",  label: "Delivered"   },
+          { id: "cancelled",  label: "Cancelled"   },
         ].map((tab) => (
           <button
             key={tab.id}
@@ -251,44 +274,62 @@ const UserDashboard = () => {
           >
             {tab.label}
             <span className="ml-1.5 text-xs text-gray-400">
-              ({tab.id === "all" ? MOCK_ORDERS.length : MOCK_ORDERS.filter((o) => o.status === tab.id).length})
+              ({tab.id === "all"
+                ? orders.length
+                : orders.filter((o) => o.status === tab.id).length})
             </span>
           </button>
         ))}
       </div>
 
-      {filteredOrders.length === 0 ? (
+      {ordersLoading ? (
+        <div className="py-16 text-center text-sm text-gray-400">Loading orders...</div>
+      ) : filteredOrders.length === 0 ? (
         <div className="py-16 text-center">
           <Package size={36} className="text-gray-200 mx-auto mb-3" />
           <p className="text-gray-500 font-medium text-sm">No orders found</p>
+          {orderFilter !== "all" && (
+            <button
+              onClick={() => setOrderFilter("all")}
+              className="text-xs text-primary-600 font-medium mt-2 hover:underline"
+            >
+              Show all orders
+            </button>
+          )}
         </div>
       ) : (
         <div className="divide-y divide-gray-100">
           {filteredOrders.map((order) => {
-            const cfg  = STATUS_CONFIG[order.status];
+            const cfg  = STATUS_CONFIG[order.status] || STATUS_CONFIG.processing;
             const Icon = cfg.icon;
             return (
               <div key={order._id} className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm font-bold text-gray-900">#{order.number}</p>
+                      <p className="text-sm font-bold text-gray-900">#{order.orderNumber}</p>
                       <span className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full ${cfg.color}`}>
                         <Icon size={10} />
                         {cfg.label}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-400">{order.date} · {order.itemCount} items</p>
+                    <p className="text-xs text-gray-400">
+                      {new Date(order.createdAt).toLocaleDateString("en-US", {
+                        year: "numeric", month: "long", day: "numeric",
+                      })} · {order.items.length} items
+                    </p>
                   </div>
-                  <p className="text-base font-bold text-gray-900">{formatPrice(order.total)}</p>
+                  <p className="text-base font-bold text-gray-900">
+                    {formatPrice(order.totalPrice)}
+                  </p>
                 </div>
 
                 {/* Items */}
                 <div className="space-y-1.5 mb-3">
                   {order.items.map((item, i) => (
                     <div key={i} className="flex items-center justify-between text-xs text-gray-500">
-                      <span>{item.name} × {item.qty}</span>
-                      <span>{formatPrice(item.price * item.qty)}</span>
+                      <span>{item.name} × {item.quantity}</span>
+                      <span>{formatPrice(item.price * item.quantity)}</span>
                     </div>
                   ))}
                 </div>
@@ -313,6 +354,22 @@ const UserDashboard = () => {
                       </button>
                     </>
                   )}
+                  {["processing", "packed"].includes(order.status) && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          await ordersAPI.cancel(order._id);
+                          toast.success("Order cancelled");
+                        } catch {
+                          toast.error("Cannot cancel this order");
+                        }
+                      }}
+                      className="flex items-center gap-1.5 text-xs font-medium text-red-500 hover:text-red-700 transition-colors"
+                    >
+                      <XCircle size={12} />
+                      Cancel order
+                    </button>
+                  )}
                   <button className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors ml-auto">
                     <Download size={12} />
                     Invoice
@@ -330,9 +387,7 @@ const UserDashboard = () => {
   const Wishlist = () => (
     <div className="bg-white border border-gray-100 rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-gray-900">
-          Saved items ({wishlist.length})
-        </h3>
+        <h3 className="font-semibold text-gray-900">Saved items ({wishlist.length})</h3>
       </div>
       {wishlist.length === 0 ? (
         <div className="py-16 text-center">
@@ -353,19 +408,40 @@ const UserDashboard = () => {
                 <p className="text-xs text-primary-600 font-medium mb-0.5">{item.category}</p>
                 <p className="text-sm font-semibold text-gray-900 line-clamp-1 mb-1">{item.name}</p>
                 <div className="flex items-center gap-1 mb-2">
-                  {[1,2,3,4,5].map((s) => (
-                    <Star key={s} size={10} className={s <= Math.round(item.rating) ? "fill-amber-400 text-amber-400" : "fill-gray-200 text-gray-200"} />
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <Star
+                      key={s}
+                      size={10}
+                      className={s <= Math.round(item.rating) ? "fill-amber-400 text-amber-400" : "fill-gray-200 text-gray-200"}
+                    />
                   ))}
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="text-sm font-bold text-gray-900">{formatPrice(item.price)}</span>
                     {item.originalPrice && (
-                      <span className="text-xs text-gray-400 line-through ml-1.5">{formatPrice(item.originalPrice)}</span>
+                      <span className="text-xs text-gray-400 line-through ml-1.5">
+                        {formatPrice(item.originalPrice)}
+                      </span>
                     )}
                   </div>
                   <div className="flex gap-1.5">
-                    <button className="text-xs bg-primary-600 hover:bg-primary-800 text-white px-2.5 py-1.5 rounded-lg transition-colors">
+                    <button
+                      onClick={() => {
+                        addItem({
+                          _id:           item._id,
+                          name:          item.name,
+                          price:         item.price,
+                          category:      item.category,
+                          selectedColor: null,
+                          selectedSize:  null,
+                          quantity:      1,
+                        });
+                        toast.success("Added to cart");
+                      }}
+                      disabled={!item.inStock}
+                      className="text-xs bg-primary-600 hover:bg-primary-800 disabled:bg-gray-200 disabled:cursor-not-allowed text-white px-2.5 py-1.5 rounded-lg transition-colors"
+                    >
                       Add to cart
                     </button>
                     <button
@@ -390,12 +466,30 @@ const UserDashboard = () => {
   // ── Profile tab ──
   const Profile = () => {
     const [editing, setEditing] = useState(false);
+    const [saving,  setSaving]  = useState(false);
     const [profile, setProfile] = useState({
       name:  user?.name  || "",
       email: user?.email || "",
-      phone: "+1 (555) 000-0172",
+      phone: user?.phone || "",
       dob:   "1992-06-15",
     });
+
+    const handleSave = async () => {
+      setSaving(true);
+      try {
+        await authAPI.updateProfile({
+          name:  profile.name,
+          email: profile.email,
+          phone: profile.phone,
+        });
+        setEditing(false);
+        toast.success("Profile updated successfully");
+      } catch {
+        toast.error("Failed to update profile");
+      } finally {
+        setSaving(false);
+      }
+    };
 
     return (
       <div className="bg-white border border-gray-100 rounded-2xl p-5">
@@ -440,15 +534,20 @@ const UserDashboard = () => {
         {editing && (
           <div className="flex gap-3 mt-5 pt-5 border-t border-gray-100">
             <button
-              onClick={() => { setEditing(false); toast.success("Profile updated"); }}
-              className="btn-primary text-sm"
+              onClick={handleSave}
+              disabled={saving}
+              className="btn-primary text-sm flex items-center gap-2"
             >
-              Save changes
+              {saving ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save changes"
+              )}
             </button>
-            <button
-              onClick={() => setEditing(false)}
-              className="btn-ghost text-sm"
-            >
+            <button onClick={() => setEditing(false)} className="btn-ghost text-sm">
               Cancel
             </button>
           </div>
@@ -458,10 +557,10 @@ const UserDashboard = () => {
   };
 
   const TABS = {
-    overview:  <Overview />,
-    orders:    <Orders />,
-    wishlist:  <Wishlist />,
-    profile:   <Profile />,
+    overview: <Overview />,
+    orders:   <Orders />,
+    wishlist: <Wishlist />,
+    profile:  <Profile />,
     addresses: (
       <div className="bg-white border border-gray-100 rounded-2xl p-10 text-center">
         <MapPin size={36} className="text-gray-200 mx-auto mb-3" />
