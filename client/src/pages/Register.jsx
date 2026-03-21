@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useDispatch } from "react-redux";
 import { loginSuccess } from "@/store/slices/authSlice";
+import { authAPI } from "@/store/api/authApi";
 import toast from "react-hot-toast";
 
 const PasswordStrength = ({ password }) => {
@@ -18,9 +19,7 @@ const PasswordStrength = ({ password }) => {
   const strength = checks.filter((c) => c.pass).length;
   const colors   = ["bg-red-400", "bg-orange-400", "bg-amber-400", "bg-green-400"];
   const labels   = ["Weak", "Fair", "Good", "Strong"];
-
   if (!password) return null;
-
   return (
     <div className="mt-2 space-y-2">
       <div className="flex gap-1">
@@ -33,7 +32,11 @@ const PasswordStrength = ({ password }) => {
           />
         ))}
       </div>
-      <p className={`text-xs font-medium ${strength <= 1 ? "text-red-500" : strength === 2 ? "text-amber-500" : strength === 3 ? "text-amber-600" : "text-green-600"}`}>
+      <p className={`text-xs font-medium ${
+        strength <= 1 ? "text-red-500" :
+        strength === 2 ? "text-amber-500" :
+        strength === 3 ? "text-amber-600" : "text-green-600"
+      }`}>
         {labels[strength - 1] || ""}
       </p>
       <div className="grid grid-cols-2 gap-1">
@@ -53,8 +56,8 @@ const PasswordStrength = ({ password }) => {
 };
 
 const Register = () => {
-  const dispatch  = useDispatch();
-  const navigate  = useNavigate();
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
 
   const [form, setForm] = useState({
     name: "", email: "", password: "", confirmPassword: "", agree: false,
@@ -71,11 +74,11 @@ const Register = () => {
 
   const validate = () => {
     const e = {};
-    if (!form.name.trim())    e.name    = "Full name is required";
-    if (!form.email.trim())   e.email   = "Email is required";
+    if (!form.name.trim())     e.name    = "Full name is required";
+    if (!form.email.trim())    e.email   = "Email is required";
     else if (!/\S+@\S+\.\S+/.test(form.email)) e.email = "Enter a valid email";
-    if (!form.password)       e.password = "Password is required";
-    else if (form.password.length < 8) e.password = "Minimum 8 characters";
+    if (!form.password)        e.password = "Password is required";
+    else if (form.password.length < 6) e.password = "Minimum 6 characters";
     if (!form.confirmPassword) e.confirmPassword = "Please confirm your password";
     else if (form.password !== form.confirmPassword) e.confirmPassword = "Passwords do not match";
     if (!form.agree) e.agree = "You must accept the terms to continue";
@@ -88,18 +91,17 @@ const Register = () => {
     if (!validate()) return;
     setLoading(true);
     try {
-      await new Promise((r) => setTimeout(r, 1400));
-      const mockUser = {
-        _id:   "u2",
-        name:  form.name,
-        email: form.email,
-        role:  "user",
-      };
-      dispatch(loginSuccess({ user: mockUser, token: "mock-jwt-token-new" }));
-      toast.success(`Welcome to ShopVerse, ${form.name.split(" ")[0]}!`);
+      const { data } = await authAPI.register({
+        name:     form.name,
+        email:    form.email,
+        password: form.password,
+      });
+      dispatch(loginSuccess({ user: data.user, token: data.token }));
+      toast.success(`Welcome to ShopVerse, ${data.user.name.split(" ")[0]}!`);
       navigate("/");
-    } catch {
-      setErrors({ general: "Something went wrong. Please try again." });
+    } catch (err) {
+      const message = err.response?.data?.message || "Something went wrong";
+      setErrors({ general: message });
     } finally {
       setLoading(false);
     }
@@ -107,7 +109,6 @@ const Register = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Left branding panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-primary-900 flex-col justify-between p-12 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-20 right-20 w-64 h-64 bg-primary-200 rounded-full blur-3xl" />
@@ -123,7 +124,8 @@ const Register = () => {
         </div>
         <div className="relative space-y-6">
           <h2 className="text-4xl font-bold text-white leading-tight">
-            Join millions of<br />
+            Join millions of
+            <br />
             <span className="text-primary-200">happy shoppers</span>
           </h2>
           <p className="text-primary-100 text-base leading-relaxed max-w-sm">
@@ -131,15 +133,12 @@ const Register = () => {
           </p>
           <div className="grid grid-cols-2 gap-4">
             {[
-              { value: "50K+",  label: "Products" },
-              { value: "2M+",   label: "Customers" },
-              { value: "4.9★",  label: "Avg rating" },
-              { value: "Free",  label: "Shipping $75+" },
+              { value: "50K+", label: "Products"      },
+              { value: "2M+",  label: "Customers"     },
+              { value: "4.9★", label: "Avg rating"    },
+              { value: "Free", label: "Shipping $75+" },
             ].map((s) => (
-              <div
-                key={s.label}
-                className="bg-white/10 border border-white/20 rounded-xl p-4 text-center"
-              >
+              <div key={s.label} className="bg-white/10 border border-white/20 rounded-xl p-4 text-center">
                 <p className="text-2xl font-bold text-white">{s.value}</p>
                 <p className="text-xs text-primary-200 mt-0.5">{s.label}</p>
               </div>
@@ -151,10 +150,8 @@ const Register = () => {
         </div>
       </div>
 
-      {/* Right form panel */}
       <div className="flex-1 flex items-center justify-center p-6 sm:p-12 overflow-y-auto">
         <div className="w-full max-w-md py-6">
-          {/* Mobile logo */}
           <Link to="/" className="flex items-center gap-2 justify-center mb-8 lg:hidden">
             <ShoppingBag size={24} className="text-primary-600" />
             <span className="text-xl font-bold text-gray-900">
@@ -180,7 +177,6 @@ const Register = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Full name */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-gray-700">Full name</label>
               <div className="relative">
@@ -196,7 +192,6 @@ const Register = () => {
               {errors.name && <p className="text-xs text-red-500">{errors.name}</p>}
             </div>
 
-            {/* Email */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-gray-700">Email address</label>
               <div className="relative">
@@ -212,7 +207,6 @@ const Register = () => {
               {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
             </div>
 
-            {/* Password */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-gray-700">Password</label>
               <div className="relative">
@@ -236,7 +230,6 @@ const Register = () => {
               <PasswordStrength password={form.password} />
             </div>
 
-            {/* Confirm password */}
             <div className="flex flex-col gap-1.5">
               <label className="text-xs font-semibold text-gray-700">Confirm password</label>
               <div className="relative">
@@ -266,7 +259,6 @@ const Register = () => {
               )}
             </div>
 
-            {/* Terms */}
             <div className="flex flex-col gap-1">
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input
@@ -303,7 +295,6 @@ const Register = () => {
             </button>
           </form>
 
-          {/* Divider */}
           <div className="flex items-center gap-3 my-6">
             <div className="flex-1 h-px bg-gray-200" />
             <span className="text-xs text-gray-400 font-medium">or sign up with</span>
@@ -312,8 +303,8 @@ const Register = () => {
 
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: "Google", bg: "bg-white border-gray-200",     color: "text-gray-700" },
-              { label: "GitHub", bg: "bg-gray-900 border-gray-900",  color: "text-white"   },
+              { label: "Google", bg: "bg-white border-gray-200",    color: "text-gray-700" },
+              { label: "GitHub", bg: "bg-gray-900 border-gray-900", color: "text-white"    },
             ].map((s) => (
               <button
                 key={s.label}

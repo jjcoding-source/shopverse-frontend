@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Eye, EyeOff, Mail, Lock, ShoppingBag, AlertCircle } from "lucide-react";
 import { useDispatch } from "react-redux";
 import { loginStart, loginSuccess, loginFailure } from "@/store/slices/authSlice";
+import { authAPI } from "@/store/api/authApi";
 import toast from "react-hot-toast";
 
 const Login = () => {
@@ -11,10 +12,10 @@ const Login = () => {
   const location  = useLocation();
   const from      = location.state?.from?.pathname || "/";
 
-  const [form, setForm]         = useState({ email: "", password: "" });
-  const [errors, setErrors]     = useState({});
+  const [form,     setForm]     = useState({ email: "", password: "" });
+  const [errors,   setErrors]   = useState({});
   const [showPass, setShowPass] = useState(false);
-  const [loading, setLoading]   = useState(false);
+  const [loading,  setLoading]  = useState(false);
 
   const update = (field, value) => {
     setForm((p) => ({ ...p, [field]: value }));
@@ -37,20 +38,14 @@ const Login = () => {
     dispatch(loginStart());
     setLoading(true);
     try {
-      // Simulated API call
-      await new Promise((r) => setTimeout(r, 1200));
-      const mockUser = {
-        _id:   "u1",
-        name:  "James Kumar",
-        email: form.email,
-        role:  form.email.includes("admin") ? "admin" : "user",
-      };
-      dispatch(loginSuccess({ user: mockUser, token: "mock-jwt-token" }));
-      toast.success(`Welcome back, ${mockUser.name.split(" ")[0]}!`);
+      const { data } = await authAPI.login(form);
+      dispatch(loginSuccess({ user: data.user, token: data.token }));
+      toast.success(`Welcome back, ${data.user.name.split(" ")[0]}!`);
       navigate(from, { replace: true });
     } catch (err) {
-      dispatch(loginFailure("Invalid email or password"));
-      setErrors({ general: "Invalid email or password. Please try again." });
+      const message = err.response?.data?.message || "Invalid email or password";
+      dispatch(loginFailure(message));
+      setErrors({ general: message });
     } finally {
       setLoading(false);
     }
@@ -58,7 +53,7 @@ const Login = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
-      {/* Left panel — branding */}
+      {/* Left panel */}
       <div className="hidden lg:flex lg:w-1/2 bg-primary-900 flex-col justify-between p-12 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-20 left-20 w-64 h-64 bg-primary-200 rounded-full blur-3xl" />
@@ -74,11 +69,12 @@ const Login = () => {
         </div>
         <div className="relative space-y-6">
           <h2 className="text-4xl font-bold text-white leading-tight">
-            Welcome back to<br />
+            Welcome back to
+            <br />
             <span className="text-primary-200">ShopVerse</span>
           </h2>
           <p className="text-primary-100 text-base leading-relaxed max-w-sm">
-            Sign in to access your orders, wishlist, and personalised recommendations.
+            Sign in to access your orders, wishlist and personalised recommendations.
           </p>
           <div className="flex flex-col gap-3">
             {[
@@ -90,7 +86,7 @@ const Login = () => {
               <div key={item} className="flex items-center gap-3 text-sm text-primary-100">
                 <div className="w-5 h-5 rounded-full bg-primary-600 flex items-center justify-center shrink-0">
                   <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                    <path d="M2 5l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M2 5l2 2 4-4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                 </div>
                 {item}
@@ -116,10 +112,9 @@ const Login = () => {
         </div>
       </div>
 
-      {/* Right panel — form */}
+      {/* Right panel */}
       <div className="flex-1 flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-md">
-          {/* Mobile logo */}
           <Link to="/" className="flex items-center gap-2 justify-center mb-8 lg:hidden">
             <ShoppingBag size={24} className="text-primary-600" />
             <span className="text-xl font-bold text-gray-900">
@@ -137,7 +132,6 @@ const Login = () => {
             </p>
           </div>
 
-          {/* General error */}
           {errors.general && (
             <div className="flex items-center gap-2.5 bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-3 rounded-xl mb-5">
               <AlertCircle size={16} className="shrink-0" />
@@ -146,77 +140,57 @@ const Login = () => {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Email */}
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs font-semibold text-gray-700">
-                Email address
-              </label>
+              <label className="text-xs font-semibold text-gray-700">Email address</label>
               <div className="relative">
-                <Mail
-                  size={15}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
-                />
+                <Mail size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type="email"
                   placeholder="john@example.com"
                   value={form.email}
                   onChange={(e) => update("email", e.target.value)}
-                  className={`input-field pl-10 ${errors.email ? "border-red-400 focus:border-red-400 focus:ring-red-50" : ""}`}
+                  className={`input-field pl-10 ${errors.email ? "border-red-400" : ""}`}
                 />
               </div>
-              {errors.email && (
-                <p className="text-xs text-red-500">{errors.email}</p>
-              )}
+              {errors.email && <p className="text-xs text-red-500">{errors.email}</p>}
             </div>
 
-            {/* Password */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-gray-700">
-                  Password
-                </label>
+                <label className="text-xs font-semibold text-gray-700">Password</label>
                 <a href="#" className="text-xs text-primary-600 hover:text-primary-800 font-medium transition-colors">
                   Forgot password?
                 </a>
               </div>
               <div className="relative">
-                <Lock
-                  size={15}
-                  className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400"
-                />
+                <Lock size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
                   type={showPass ? "text" : "password"}
                   placeholder="Enter your password"
                   value={form.password}
                   onChange={(e) => update("password", e.target.value)}
-                  className={`input-field pl-10 pr-10 ${errors.password ? "border-red-400 focus:border-red-400 focus:ring-red-50" : ""}`}
+                  className={`input-field pl-10 pr-10 ${errors.password ? "border-red-400" : ""}`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPass((p) => !p)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                 >
                   {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
                 </button>
               </div>
-              {errors.password && (
-                <p className="text-xs text-red-500">{errors.password}</p>
-              )}
+              {errors.password && <p className="text-xs text-red-500">{errors.password}</p>}
             </div>
 
-            {/* Remember me */}
             <label className="flex items-center gap-2 cursor-pointer">
-              <input
-                type="checkbox"
-                className="accent-primary-600 w-4 h-4"
-              />
+              <input type="checkbox" className="accent-primary-600 w-4 h-4" />
               <span className="text-sm text-gray-600">Remember me for 30 days</span>
             </label>
 
             <button
               type="submit"
               disabled={loading}
-              className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-800 disabled:bg-primary-400 text-white font-semibold py-3 rounded-xl transition-colors mt-2"
+              className="w-full flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-800 disabled:bg-primary-400 text-white font-semibold py-3 rounded-xl transition-colors"
             >
               {loading ? (
                 <>
@@ -229,18 +203,16 @@ const Login = () => {
             </button>
           </form>
 
-          {/* Divider */}
           <div className="flex items-center gap-3 my-6">
             <div className="flex-1 h-px bg-gray-200" />
             <span className="text-xs text-gray-400 font-medium">or continue with</span>
             <div className="flex-1 h-px bg-gray-200" />
           </div>
 
-          {/* Social logins */}
           <div className="grid grid-cols-2 gap-3">
             {[
-              { label: "Google",  bg: "bg-white border-gray-200", color: "text-gray-700" },
-              { label: "GitHub",  bg: "bg-gray-900 border-gray-900", color: "text-white" },
+              { label: "Google", bg: "bg-white border-gray-200",    color: "text-gray-700" },
+              { label: "GitHub", bg: "bg-gray-900 border-gray-900", color: "text-white"    },
             ].map((s) => (
               <button
                 key={s.label}
