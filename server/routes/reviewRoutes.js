@@ -4,14 +4,16 @@ import {
   createReview,
   markHelpful,
   deleteReview,
+  checkCanReview,
 } from "../controllers/reviewController.js";
-import { protect } from "../middleware/authMiddleware.js";
+import { protect, optionalAuth } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
-router.get ("/:productId",         getProductReviews);
-router.post("/:productId",         protect, createReview);
-router.put ("/:id/helpful",        protect, markHelpful);
-router.delete("/:id",              protect, deleteReview);
+router.get  ("/:productId",          optionalAuth, getProductReviews);
+router.get  ("/:productId/can-review", protect,    checkCanReview);
+router.post ("/:productId",          protect,      createReview);
+router.put  ("/:id/helpful",         protect,      markHelpful);
+router.delete("/:id",                protect,      deleteReview);
 
 export default router;
