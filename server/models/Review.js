@@ -29,17 +29,15 @@ const reviewSchema = new mongoose.Schema(
       required:  [true, "Review body is required"],
       maxlength: [1000, "Review cannot exceed 1000 characters"],
     },
-    isVerified: { type: Boolean, default: false },
-    helpful:    { type: Number,  default: 0     },
+    isVerified:   { type: Boolean, default: false },
+    helpful:      { type: Number,  default: 0     },
     helpfulVotes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   },
   { timestamps: true }
 );
 
-// One review per user per product
 reviewSchema.index({ user: 1, product: 1 }, { unique: true });
 
-// Update product rating after save
 reviewSchema.statics.calcAverageRating = async function (productId) {
   const stats = await this.aggregate([
     { $match: { product: productId } },
@@ -69,7 +67,7 @@ reviewSchema.post("save", async function () {
   await this.constructor.calcAverageRating(this.product);
 });
 
-reviewSchema.post("deleteOne", { document: true }, async function () {
+reviewSchema.post("deleteOne", { document: true, query: false }, async function () {
   await this.constructor.calcAverageRating(this.product);
 });
 

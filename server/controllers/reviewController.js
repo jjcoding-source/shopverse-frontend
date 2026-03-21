@@ -1,24 +1,27 @@
-import Review from "../models/Review.js";
-import Order  from "../models/Order.js";
+import Review   from "../models/Review.js";
+import Order    from "../models/Order.js";
+import mongoose from "mongoose";
+
 
 export const getProductReviews = async (req, res) => {
   const page  = Number(req.query.page)  || 1;
   const limit = Number(req.query.limit) || 5;
   const skip  = (page - 1) * limit;
 
-  const [reviews, total] = await Promise.all([
+  const productObjectId = new mongoose.Types.ObjectId(req.params.productId);
+
+  const [reviews, total, distribution] = await Promise.all([
     Review.find({ product: req.params.productId })
       .populate("user", "name avatar")
       .sort("-createdAt")
       .skip(skip)
       .limit(limit),
     Review.countDocuments({ product: req.params.productId }),
-  ]);
-
-  const distribution = await Review.aggregate([
-    { $match: { product: require("mongoose").Types.ObjectId.createFromHexString(req.params.productId) } },
-    { $group: { _id: "$rating", count: { $sum: 1 } } },
-    { $sort: { _id: -1 } },
+    Review.aggregate([
+      { $match: { product: productObjectId } },
+      { $group: { _id: "$rating", count: { $sum: 1 } } },
+      { $sort: { _id: -1 } },
+    ]),
   ]);
 
   const ratingDist = [5, 4, 3, 2, 1].map((star) => ({
@@ -27,7 +30,7 @@ export const getProductReviews = async (req, res) => {
   }));
 
   res.json({
-    success: true,
+    success:    true,
     reviews,
     total,
     page,
@@ -39,18 +42,17 @@ export const getProductReviews = async (req, res) => {
 export const checkCanReview = async (req, res) => {
   const productId = req.params.productId;
 
-  // Check if user has purchased and received the product
-  const hasPurchased = await Order.findOne({
-    user:            req.user._id,
-    "items.product": productId,
-    status:          "delivered",
-  });
-
-  // Check if user already reviewed
-  const alreadyReviewed = await Review.findOne({
-    user:    req.user._id,
-    product: productId,
-  });
+  const [hasPurchased, alreadyReviewed] = await Promise.all([
+    Order.findOne({
+      user:            req.user._id,
+      "items.product": productId,
+      status:          "delivered",
+    }),
+    Review.findOne({
+      user:    req.user._id,
+      product: productId,
+    }),
+  ]);
 
   res.json({
     success:         true,
@@ -69,12 +71,11 @@ export const createReview = async (req, res) => {
     throw new Error("Please provide rating, title and review body");
   }
 
-  if (rating < 1 || rating > 5) {
+  if (Number(rating) < 1 || Number(rating) > 5) {
     res.status(400);
     throw new Error("Rating must be between 1 and 5");
   }
 
-  // Check if already reviewed
   const existing = await Review.findOne({
     user:    req.user._id,
     product: productId,
@@ -85,7 +86,6 @@ export const createReview = async (req, res) => {
     throw new Error("You have already reviewed this product");
   }
 
-  // Check if user purchased this product
   const hasPurchased = await Order.findOne({
     user:            req.user._id,
     "items.product": productId,
